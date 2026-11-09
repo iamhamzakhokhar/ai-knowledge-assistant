@@ -15,14 +15,24 @@
 
 ## Current scope and architecture
 
-- The current foundation is a Next.js marketing/dashboard shell, a FastAPI
-  health/status service and a disconnected Web Component preview.
+- The current setup includes a Next.js marketing/dashboard shell, a FastAPI
+  liveness/readiness/status service, a disconnected Web Component preview, and
+  local Compose infrastructure: PostgreSQL/pgvector, migrations, authenticated
+  Redis, fictional seeds and a JSON RQ infrastructure probe.
+- Database RLS and transaction-local tenant context protect the initial tables
+  for trusted internal callers. User authentication, memberships/roles, ingestion,
+  retrieval and AI chat remain planned. Never accept an unverified client tenant
+  ID as authorization or expose the internal probe as a public enqueue endpoint.
 - Keep implemented behavior distinct from planned behavior. Do not fabricate
   model replies, connected workflows, customers, revenue, traffic, coverage,
   evaluation results or performance scores.
 - Read the relevant package and `docs/architecture.md` before changing a boundary.
-  Each team must remain isolated when tenancy is implemented, including jobs,
-  retrieval, citations, files, caches, analytics and MCP tools.
+  Preserve the implemented database/job isolation and extend it to retrieval,
+  citations, files, caches, analytics and MCP tools as those features are added.
+- Read `docs/infrastructure.md` before changing Compose, migrations, secrets or
+  recovery commands. Keep owner credentials out of API/worker containers; normal
+  shutdown must preserve data. Destructive database/volume commands belong only
+  to an explicitly scoped reset or disposable test project.
 - Future model-proposed writes require human approval of the exact payload,
   authorization at execution time, idempotency and an audit trail.
 
