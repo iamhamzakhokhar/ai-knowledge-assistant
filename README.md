@@ -3,6 +3,8 @@
 An open-source AI knowledge assistant being built around cited answers and human-approved actions.
 
 [![CI](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/ci.yml)
+[![Security](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/security.yml/badge.svg)](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/security.yml)
+[![CodeQL](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/codeql.yml/badge.svg)](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/codeql.yml)
 
 Built by Hamza Zahid Khokhar.
 
@@ -215,6 +217,12 @@ Live-model evaluations, complete accessibility conformance and Lighthouse
 scores are not measured yet.
 
 ## Roadmap
+
+Repository checks include full-history secret scanning, staged-content hooks,
+workflow validation, dependency auditing, and CodeQL for Actions, JavaScript/
+TypeScript, and Python. Dependabot checks five dependency ecosystems weekly.
+Read the [security guide](docs/security.md) for the pnpm dependency-graph limitation
+and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
 - [Setup](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/1): issues #1–#3 establish application shells, local services, migrations, CI and repository security.
 - [Core features](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/2): issues #4–#15 deliver authenticated tenancy, ingestion, retrieval, cited chat, widget integration, approvals, actions, analytics, billing and MCP.
