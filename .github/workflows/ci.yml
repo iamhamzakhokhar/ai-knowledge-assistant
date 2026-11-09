@@ -39,6 +39,10 @@ jobs:
           pnpm install --frozen-lockfile
       - name: Install Python dependencies
         run: uv sync --directory services/ai --locked
+      - name: Inject disposable lint regression
+        run: |
+          mkdir -p ci-negative
+          printf '%s\n' 'const incomplete = ;' > ci-negative/control.ts
       - name: Lint and formatting
         run: pnpm lint
       - name: Type check
