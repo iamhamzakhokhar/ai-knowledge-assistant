@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: services/ai/uv.lock
+      - name: Install JavaScript dependencies
+        run: |
+          npm install --global pnpm@12.18.0
+          pnpm install --frozen-lockfile
+      - name: Install Python dependencies
+        run: uv sync --directory services/ai --locked
+      - name: Lint and formatting
+        run: pnpm lint
+      - name: Type check
+        run: pnpm typecheck
+      - name: Production builds
+        run: |
+          pnpm build
+          uv build --directory services/ai
+      - name: API tests and coverage
+        run: uv run --directory services/ai pytest --cov=knowledge_assistant --cov-report=term-missing --cov-fail-under=85
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Browser tests
+        run: pnpm test:browser

@@ -1,0 +1,20 @@
+{
+  "name": "@aka/widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A dependency-free embeddable knowledge assistant widget.",
+  "license": "MIT",
+  "main": "./dist/widget.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": true,
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

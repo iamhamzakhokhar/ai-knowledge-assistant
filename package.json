@@ -1,0 +1,28 @@
+{
+  "name": "ai-knowledge-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": "26.x",
+    "pnpm": "12.x"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @aka/web dev",
+    "dev:api": "uv run --directory services/ai uvicorn knowledge_assistant.app:app --reload --port 8000",
+    "build": "pnpm -r build",
+    "lint": "biome check . && uv run --directory services/ai ruff check . && uv run --directory services/ai ruff format --check .",
+    "format": "biome check --write . && uv run --directory services/ai ruff check --fix . && uv run --directory services/ai ruff format .",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit",
+    "test": "pnpm test:api && pnpm test:browser",
+    "test:api": "uv run --directory services/ai pytest",
+    "test:browser": "playwright test",
+    "setup:hooks": "git config --local core.hooksPath .githooks"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.6",
+    "@playwright/test": "1.65.0",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}
