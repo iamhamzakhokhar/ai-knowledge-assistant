@@ -4,6 +4,10 @@ node_modules/
 dist/
 build/
 coverage/
+htmlcov/
+.coverage
+.coverage.*
+*.tsbuildinfo
 .turbo/
 .venv/
 __pycache__/
