@@ -161,7 +161,9 @@ do not require Docker or read secret fixtures.
 
 The test image also measures package coverage across unit/integration tests and
 migration subprocesses, with an 85% combined threshold. That threshold is a CI
-requirement, not a claimed measured result.
+requirement. The [recorded run](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42577536707)
+passed all 104 Python cases and reported 88% combined statement/branch coverage.
+The same run passed restart persistence, backup/restore and six browser checks.
 
 CI uses [scripts/compose_smoke.py](../scripts/compose_smoke.py) with a unique
 `aka-ci-...` project name. The script builds a clean stack, seeds it, runs real

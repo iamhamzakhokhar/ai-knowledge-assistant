@@ -203,6 +203,13 @@ backup/restore roundtrip in an isolated Compose project.
 
 The [CI workflow](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/ci.yml)
 is the source for actual run results and the measured combined coverage report.
+The [recorded infrastructure run](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42577536707)
+passed **104 Python tests** (81 unit and 23 real-service integration cases),
+reported **88% combined statement/branch coverage of the Python service**, and
+passed **6 desktop/mobile browser tests**. It also verified restart persistence
+and a database backup/restore roundtrip. These figures cover the implemented
+setup, not the planned AI product.
+
 Local unit results alone do not establish infrastructure or recovery behavior.
 Live-model evaluations, complete accessibility conformance and Lighthouse
 scores are not measured yet.
