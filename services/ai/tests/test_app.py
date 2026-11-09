@@ -20,6 +20,16 @@ def test_health_is_liveness_only(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+@pytest.mark.parametrize("available, expected_status", [(False, 503), (True, 200)])
+def test_readiness_has_a_generic_dependency_response(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, available: bool, expected_status: int
+) -> None:
+    monkeypatch.setattr("knowledge_assistant.app.check_dependencies", lambda _settings: available)
+    response = client.get("/ready")
+    assert response.status_code == expected_status
+    assert response.json() == {"status": "ready" if available else "unavailable"}
+
+
 def test_status_reports_only_implemented_capabilities(client: TestClient) -> None:
     response = client.get("/api/v1/status")
     assert response.status_code == 200

@@ -1,39 +1,112 @@
 # Architecture
 
-KnowledgeDesk is a portfolio project by Hamza Zahid Khokhar. This document labels
-the implemented setup separately from the design for future feature issues.
+KnowledgeDesk is a portfolio project by Hamza Zahid Khokhar. The setup code
+establishes local infrastructure and an internal tenant boundary; the product
+workflows remain on the roadmap.
 
-## Implemented foundation
+## Implemented setup
 
 ```mermaid
 flowchart LR
-    Browser[Browser] --> Web[Next.js App Router]
-    Web --> Marketing[Marketing page]
-    Web --> Dashboard[Project dashboard shell]
-    HostPage[Independent host test page] --> Widget[Classic widget.js script]
-    Widget --> Preview[Shadow DOM disconnected preview]
-    Client[Developer or HTTP client] --> API[FastAPI service]
-    API --> Health[GET /health]
-    API --> Status[GET /api/v1/status]
-    API --> OpenAPI[GET /docs]
+    Browser[Browser] --> Web[Next.js project shell]
+    HostPage[Independent host test page] --> Widget[Disconnected Web Component]
+    Client[Developer or HTTP client] --> API[FastAPI]
+    API --> Liveness[GET /health]
+    API --> Readiness[GET /ready]
+    Readiness --> DB[(PostgreSQL 18 and pgvector)]
+    Readiness --> Redis[(Authenticated Redis)]
+    Probe[Internal Python probe] --> DB
+    Probe --> Redis
+    Redis --> Worker[RQ ingestion queue worker]
+    Worker --> DB
+    Migrate[Owner-only migration service] --> DB
+    Seed[Fictional seed command] --> DB
 ```
 
-- `apps/web` renders a responsive marketing page and a public project overview.
-  Its sample answer is explicitly illustrative. There is no sign-up, document
-  upload, actual conversation or authenticated workspace.
-- `services/ai` exposes typed liveness and implementation-status responses.
-  `/health` reports process liveness only; it does not test a database, model
-  provider or another external dependency. Status lists the unimplemented AI
-  capabilities as false. Settings validate exact CORS origins and environment.
-- `packages/widget` builds a dependency-free classic script. It registers
-  `<aka-chat-widget>` and can mount it from one script tag. Its non-modal panel
-  stays closed until opened, supports keyboard closing/focus restoration, and
-  states that messaging is disconnected. Configured greetings use `textContent`;
-  brand colors are checked with `CSS.supports`.
+### Web and API
 
-These components have no application data flow between them yet. PostgreSQL,
-pgvector, Redis, workers, model SDKs, subscriptions and MCP are not part of the
-implemented foundation.
+`apps/web` renders a responsive marketing page and public project overview. Its
+sample answer is illustrative. The standalone widget supports one-script mounting,
+Shadow DOM, configured text/color, keyboard closing and focus restoration. Both
+remain disconnected from a working conversation service.
+
+The API exposes `/health`, `/ready`, `/api/v1/status` and `/docs`. Liveness only
+reports that the API process can respond. Readiness returns `200` after the
+application database connection executes `SELECT 1` and authenticated Redis
+responds to `PING`; failures return a generic `503` without connection details.
+Readiness does not assert worker execution or AI capabilities. The status endpoint
+continues to report ingestion, retrieval, chat, agents and MCP as unavailable.
+
+### Storage and the internal tenant boundary
+
+Alembic revision `0001` creates `teams`, `knowledge_sources` and `job_runs` and
+enables the vector extension. All three tables enable and force row-level
+security. Policies match the transaction's tenant UUID against the team's own
+`id` or a row's `team_id`. Without tenant context, the application role sees no
+rows. pgvector is available, but document chunks, embeddings and retrieval
+indexes have not been implemented.
+
+`aka_owner` applies migrations. Runtime `aka_app` is a non-owner login with
+`NOSUPERUSER`, `NOINHERIT` and `NOBYPASSRLS`, table DML and schema usage. It cannot
+create schema objects or temporary tables, read migration state, inherit owner
+membership, or bypass tenant policies. Bootstrap rejects an existing application
+role with unsafe flags, memberships or ownership rather than broadening it.
+
+`tenant_connection` opens a transaction and uses transaction-local
+`set_config('app.team_id', ..., true)`. Tenant context ends with commit or
+rollback before a connection returns to the pool. The supplied UUID must come
+from trusted internal code. This is a database isolation foundation, not user
+identity, team membership or authorization for a client-supplied tenant ID.
+
+The optional seed command inserts two fictional teams and one example source per
+team through the application role. Repeated seeding preserves existing records.
+It does not parse documents, call a model or build a knowledge index.
+
+### Redis and the worker probe
+
+The private RQ queue is named `ingestion` in preparation for later work. Its only
+current task is an infrastructure probe. Internal `enqueue_probe` persists a
+`queued` job record before enqueueing a fixed dotted task with UUID string
+arguments and a deterministic job ID. Producer and worker use `JSONSerializer`;
+no pickle payload is needed for this flow.
+
+The worker runs the task under its tenant transaction, moves the existing record
+through `running` to `completed`, and stores a small result. Duplicate completed
+runs return the same result; queue/execution failures have safe recorded failure
+states. Queue/result retention and execution time are bounded. There is no
+public enqueue route or model/document work. Possession of the private service
+credential is a trusted infrastructure boundary, not an end-user permission.
+
+### Compose boundaries and persistence
+
+[compose.yaml](../compose.yaml) starts `secret-init`, PostgreSQL, Redis,
+`migrate`, API, worker and web services. PostgreSQL and Redis use the internal
+backend network with no published ports. Web/API publish only loopback ports
+`3000` and `8000`; the worker has no published port. The API and worker also join
+the frontend network for their application-service connectivity.
+
+The one-shot secret initializer has no network and generates persistent random
+credentials inside three private named volumes: `postgres-secrets`,
+`app-secrets` and `redis-secrets`. PostgreSQL/migration bootstrap and opt-in tests
+can read the owner credential. API and worker mount only the application volume
+read-only and run as UID/GID `10001`; they receive no owner password. Redis reads
+its private password/config volume. Repeated startup preserves existing secrets.
+
+PostgreSQL data is mounted at `/var/lib/postgresql`, as required by the selected
+PostgreSQL 18 image layout. Redis persists data under `/data` with append-only
+storage enabled. Normal Compose shutdown keeps data and secret volumes.
+The [infrastructure guide](infrastructure.md) covers startup, migrations and
+explicitly scoped recovery/reset operations.
+
+## Verification boundary
+
+Unit tests can run without service connections. The opt-in integration suite
+uses real PostgreSQL, Redis, web, API and worker services; its migration
+roundtrip creates and removes a separate `aka_test_<uuid>` database. A CI runner
+uses a disposable `aka-ci-...` Compose project to exercise clean startup,
+fictional seeds, tenant isolation, JSON worker completion, restart persistence
+and a backup/restore check. Those checks establish evidence only when their
+workflow run passes; implementation and unit results alone do not prove them.
 
 ## Planned architecture
 

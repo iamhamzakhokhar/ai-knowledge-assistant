@@ -1,0 +1,215 @@
+name: hamza-knowledge-assistant
+
+x-ai-image: &ai-image
+  image: ${COMPOSE_PROJECT_NAME:-hamza-knowledge-assistant}-ai:local
+  build:
+    context: .
+    dockerfile: services/ai/Dockerfile
+    target: runtime
+
+x-app-environment: &app-environment
+  APP_ENV: development
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: knowledge_assistant
+  DATABASE_USER: aka_app
+  DATABASE_PASSWORD_FILE: /run/app-secrets/database_password
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD_FILE: /run/app-secrets/redis_password
+
+services:
+  secret-init:
+    <<: *ai-image
+    user: "0:0"
+    command: ["python", "-m", "knowledge_assistant.local_secrets"]
+    restart: "no"
+    volumes:
+      - postgres-secrets:/run/postgres-secrets
+      - app-secrets:/run/app-secrets
+      - redis-secrets:/run/redis-secrets
+    network_mode: none
+
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg18
+    environment:
+      POSTGRES_USER: aka_owner
+      POSTGRES_DB: knowledge_assistant
+      POSTGRES_PASSWORD_FILE: /run/postgres-secrets/postgres_password
+    depends_on:
+      secret-init:
+        condition: service_completed_successfully
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - postgres-secrets:/run/postgres-secrets:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "aka_owner", "-d", "knowledge_assistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.10.3
+    user: "999:999"
+    command: ["redis-server", "/run/redis-secrets/redis.conf"]
+    depends_on:
+      secret-init:
+        condition: service_completed_successfully
+    volumes:
+      - redis-data:/data
+      - redis-secrets:/run/redis-secrets:ro
+    networks: [backend]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -e --no-auth-warning --askpass ping < /run/redis-secrets/redis_password",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *ai-image
+    group_add: ["999"]
+    command: ["python", "-m", "knowledge_assistant.migrate", "upgrade", "head"]
+    environment:
+      <<: *app-environment
+      DATABASE_USER: aka_owner
+      DATABASE_PASSWORD_FILE: /run/postgres-secrets/postgres_password
+      APP_DATABASE_PASSWORD_FILE: /run/app-secrets/database_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - postgres-secrets:/run/postgres-secrets:ro
+      - app-secrets:/run/app-secrets:ro
+    networks: [backend]
+    restart: "no"
+
+  api:
+    <<: *ai-image
+    environment:
+      <<: *app-environment
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - app-secrets:/run/app-secrets:ro
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    networks: [backend, frontend]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    <<: *ai-image
+    command: ["python", "-m", "knowledge_assistant.worker"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - app-secrets:/run/app-secrets:ro
+    networks: [backend, frontend]
+    healthcheck:
+      test: ["CMD", "python", "-m", "knowledge_assistant.worker", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    networks: [frontend]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  seed:
+    <<: *ai-image
+    profiles: [tools]
+    command: ["python", "-m", "knowledge_assistant.seed"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - app-secrets:/run/app-secrets:ro
+    networks: [backend]
+
+  integration-tests:
+    image: ${COMPOSE_PROJECT_NAME:-hamza-knowledge-assistant}-ai-tests:local
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: services/ai/Dockerfile
+      target: integration
+    group_add: ["999"]
+    environment:
+      <<: *app-environment
+      APP_ENV: test
+      AKA_INTEGRATION_TESTS: "1"
+      ADMIN_DATABASE_PASSWORD_FILE: /run/postgres-secrets/postgres_password
+      ADMIN_DATABASE_USER: aka_owner
+      APP_DATABASE_PASSWORD_FILE: /run/app-secrets/database_password
+      API_TEST_URL: http://api:8000
+      WEB_TEST_URL: http://web:3000
+    depends_on:
+      api:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    volumes:
+      - postgres-secrets:/run/postgres-secrets:ro
+      - app-secrets:/run/app-secrets:ro
+    networks: [backend, frontend]
+
+networks:
+  backend:
+    internal: true
+  frontend:
+
+volumes:
+  postgres-data:
+  redis-data:
+  postgres-secrets:
+  app-secrets:
+  redis-secrets:

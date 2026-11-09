@@ -1,6 +1,6 @@
 # Version choices
 
-The setup foundation pins the following versions, verified against official
+The setup code pins the following versions, verified against official
 release pages or publisher-maintained package metadata on **November 9, 2026**.
 These are the choices for this implementation, not a promise that they will
 remain the newest releases. Application manifests and committed lockfiles are
@@ -49,17 +49,34 @@ components have not been added. The type declarations are pinned in the manifest
 | Ruff              | 0.17.4         | [PyPI release](https://pypi.org/project/ruff/0.17.4/)              |
 | Hatchling         | 1.33.0         | [PyPI release](https://pypi.org/project/hatchling/1.33.0/)         |
 
-FastAPI, Pydantic, settings and Uvicorn are the service dependencies. The HTTP
-client and pytest tools support tests; Ruff checks/formats Python. Hatchling is
-the build backend. Version selection is separate from measured compatibility:
-the repository checks and their recorded results establish which flows have
-actually passed.
+FastAPI, Pydantic, settings and Uvicorn provide the HTTP service. The HTTP client
+and pytest tools support tests; Ruff checks/formats Python. Hatchling builds the
+service package, including its Alembic files. Version selection is separate from
+measured compatibility: recorded check results establish which flows have passed.
+
+## Local database and queue infrastructure
+
+| Dependency                | Selected version or image tag  | Official source                                                           |
+| ------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| PostgreSQL                | 18, through the pgvector image | [PostgreSQL 18 notes](https://www.postgresql.org/docs/18/release-18.html) |
+| pgvector                  | `pgvector/pgvector:0.8.7-pg18` | [Release notes](https://github.com/pgvector/pgvector/releases/tag/v0.8.7) |
+| Redis server              | `redis:8.10.3`                 | [Release notes](https://github.com/redis/redis/releases/tag/8.10.3)       |
+| SQLAlchemy                | 2.1.8                          | [Publisher release](https://pypi.org/project/SQLAlchemy/2.1.8/)           |
+| Alembic                   | 1.20.1                         | [Publisher release](https://pypi.org/project/alembic/1.20.1/)             |
+| psycopg with binary extra | 3.3.8                          | [Publisher release](https://pypi.org/project/psycopg/3.3.8/)              |
+| redis-py                  | 8.1.0                          | [Publisher release](https://pypi.org/project/redis/8.1.0/)                |
+| RQ                        | 3.0.0                          | [Publisher release](https://pypi.org/project/rq/3.0.0/)                   |
+
+The Python service uses SQLAlchemy Core with psycopg, Alembic migrations and
+JSON RQ jobs. Redis is password-protected in Compose. The vector extension is
+enabled; embeddings, vector indexes and knowledge retrieval remain future work.
+The PostgreSQL image tag selects the 18 release line; its data volume is mounted
+at `/var/lib/postgresql`. See [local infrastructure](infrastructure.md).
 
 ## Planned dependencies
 
-PostgreSQL/pgvector, Redis, a background-job library, database migrations,
-OpenAI/Anthropic/Gemini SDKs, reranking, Langfuse, Stripe, MCP, evaluation tools and
-additional UI/testing libraries are not installed as foundation capabilities.
+OpenAI/Anthropic/Gemini SDKs, reranking, Langfuse, Stripe, MCP, evaluation tools
+and additional UI/testing libraries are not installed as product capabilities.
 Their versions will be verified against current official documentation and
 release notes, tested together, then pinned when the owning feature is built.
 No provider/model version or deployed infrastructure is implied by this roadmap.

@@ -11,13 +11,17 @@
     "dev": "pnpm --filter @aka/web dev",
     "dev:api": "uv run --directory services/ai uvicorn knowledge_assistant.app:app --reload --port 8000",
     "build": "pnpm -r build",
-    "lint": "biome check . && uv run --directory services/ai ruff check . && uv run --directory services/ai ruff format --check .",
-    "format": "biome check --write . && uv run --directory services/ai ruff check --fix . && uv run --directory services/ai ruff format .",
+    "lint": "biome check . && uv run --directory services/ai ruff check . ../../scripts && uv run --directory services/ai ruff format --check . ../../scripts",
+    "format": "biome check --write . && uv run --directory services/ai ruff check --fix . ../../scripts && uv run --directory services/ai ruff format . ../../scripts",
     "typecheck": "pnpm -r typecheck && tsc --noEmit",
     "test": "pnpm test:api && pnpm test:browser",
     "test:api": "uv run --directory services/ai pytest",
     "test:browser": "playwright test",
-    "setup:hooks": "git config --local core.hooksPath .githooks"
+    "setup:hooks": "git config --local core.hooksPath .githooks",
+    "infra:up": "docker compose up --build --wait",
+    "infra:down": "docker compose down",
+    "infra:seed": "docker compose --profile tools run --rm seed",
+    "infra:test": "docker compose --profile test run --rm --build integration-tests"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

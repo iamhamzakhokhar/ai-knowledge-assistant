@@ -1,5 +1,6 @@
 """Validated service settings; secrets are never returned by the status API."""
 
+from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -18,6 +19,18 @@ class Settings(BaseSettings):
     allowed_origins: Annotated[tuple[str, ...], NoDecode] = Field(
         default=("http://localhost:3000",), validation_alias="CORS_ORIGINS"
     )
+    database_host: str = Field(default="localhost", min_length=1, validation_alias="DATABASE_HOST")
+    database_port: int = Field(default=5432, ge=1, le=65535, validation_alias="DATABASE_PORT")
+    database_name: str = Field(
+        default="knowledge_assistant", min_length=1, validation_alias="DATABASE_NAME"
+    )
+    database_user: str = Field(default="aka_app", min_length=1, validation_alias="DATABASE_USER")
+    database_password_file: Path | None = Field(
+        default=None, validation_alias="DATABASE_PASSWORD_FILE"
+    )
+    redis_host: str = Field(default="localhost", min_length=1, validation_alias="REDIS_HOST")
+    redis_port: int = Field(default=6379, ge=1, le=65535, validation_alias="REDIS_PORT")
+    redis_password_file: Path | None = Field(default=None, validation_alias="REDIS_PASSWORD_FILE")
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

@@ -15,7 +15,7 @@ jobs:
   checks:
     name: Checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
@@ -47,8 +47,19 @@ jobs:
         run: |
           pnpm build
           uv build --directory services/ai
-      - name: API tests and coverage
-        run: uv run --directory services/ai pytest --cov=knowledge_assistant --cov-report=term-missing --cov-fail-under=85
+      - name: API unit tests
+        run: uv run --directory services/ai pytest
+      - name: Compose integration, coverage and recovery
+        env:
+          COMPOSE_PROJECT_NAME: aka-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          WEB_PORT: "43000"
+          API_PORT: "48000"
+        run: python scripts/compose_smoke.py
+      - name: Stop disposable infrastructure
+        if: always()
+        env:
+          COMPOSE_PROJECT_NAME: aka-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: docker compose --profile test down --volumes --remove-orphans
       - name: Install browser
         run: pnpm exec playwright install --with-deps chromium
       - name: Browser tests

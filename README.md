@@ -8,19 +8,22 @@ Built by Hamza Zahid Khokhar.
 
 ## Current status
 
-This repository contains the **issue #1 foundation**: a responsive marketing page,
-a project dashboard shell, a FastAPI health/status service, and a disconnected
-embeddable widget preview. The dashboard describes the roadmap; it is not an
-authenticated workspace. The marketing page's answer illustration uses fictional
-sample content.
+The setup code includes a responsive marketing page, a project dashboard shell,
+a FastAPI health/status service, and a disconnected embeddable widget preview.
+It also includes a Docker Compose environment with PostgreSQL/pgvector, Redis,
+Alembic migrations, tenant-scoped tables, fictional seed data, and an RQ worker
+that executes an internal infrastructure probe.
 
-Knowledge ingestion, retrieval, model-generated chat, citations, authentication,
-team isolation, agent actions, analytics, billing and MCP are **not implemented
-yet**. No API key is needed to explore the current shell.
+The dashboard is a public project overview. User authentication, team membership
+and roles, knowledge ingestion, retrieval, model-generated chat, working
+citations, agent actions, analytics, billing and MCP are **not implemented yet**.
+The database boundary accepts a trusted internal tenant ID; it does not
+authenticate users. The marketing answer illustration uses fictional content.
+No model API key is needed for the setup environment.
 
 **Live demo:** not deployed.
 
-![KnowledgeDesk foundation homepage](docs/images/homepage.png)
+![KnowledgeDesk setup homepage](docs/images/homepage.png)
 
 [View the mobile workspace](docs/images/workspace-mobile.png).
 
@@ -32,146 +35,200 @@ for implementation progress.
 ## What works now
 
 - Next.js marketing page at `/` and a responsive project overview at `/dashboard`.
-- FastAPI `GET /health`, `GET /api/v1/status` and generated OpenAPI docs at `/docs`.
-- A standalone TypeScript Web Component with Shadow DOM, one-script mounting,
-  branding settings, keyboard controls and a clear disconnected state.
-- Workspace commands for formatting/linting, type checking, builds and tests.
+- FastAPI liveness, dependency readiness, capability status and OpenAPI docs.
+- A standalone TypeScript Web Component with Shadow DOM, branding settings,
+  keyboard controls and a clear disconnected state.
+- PostgreSQL tables with forced row-level security, owner-only migrations,
+  transaction-local tenant context and idempotent fictional seeds.
+- Authenticated Redis and a JSON RQ probe that persists its result in a
+  tenant-scoped job record. There is no public enqueue endpoint.
+- Compose health checks, persistent volumes, separated local credentials,
+  and an opt-in integration/recovery test workflow.
 
 ## Tech stack
 
-The foundation uses Next.js **16.4.5**, React **19.3.1**, TypeScript **7.0.2**,
-Tailwind CSS **4.3.5**, Python **3.15.2** and FastAPI **0.162.2**. The widget has
-no runtime dependencies. Biome and Ruff handle formatting/linting; pytest and
-Playwright cover the foundation's important behavior.
+The web uses Next.js **16.4.5**, React **19.3.1**, TypeScript **7.0.2** and
+Tailwind CSS **4.3.5**. The service uses Python **3.15.2**, FastAPI **0.162.2**,
+SQLAlchemy **2.1.8**, Alembic **1.20.1** and psycopg **3.3.8**. The local stack
+uses PostgreSQL **18** with pgvector **0.8.7**, Redis **8.10.3**, redis-py
+**8.1.0** and RQ **3.0.0**. The widget has no runtime dependencies.
 
-See [verified versions and official release sources](docs/versions.md). The
-planned database, worker, AI provider, tracing and billing dependencies will be
-selected and pinned when their feature issues are implemented.
+Biome and Ruff handle formatting/linting; pytest and Playwright cover important
+behavior. See [version pins and official sources](docs/versions.md).
 
 ## Repository layout
 
 ```text
 apps/web/          Next.js marketing page and dashboard shell
-services/ai/       FastAPI service, settings and API tests
+services/ai/       FastAPI, database boundary, migrations, worker and tests
 packages/widget/   Standalone Web Component and classic-script build
-docs/              Current architecture, planned design and version sources
+docs/              Architecture, local infrastructure and version sources
+scripts/           Disposable Compose integration/recovery runner
 .github/           CI and repository automation
+compose.yaml       Local services, networks, health checks and persistent volumes
 ```
 
 ## Architecture
 
-The current components are independent; the web shell does not call the AI
-service or provide working chat.
+The UI and widget remain disconnected from the future chat workflow. The API
+can check infrastructure readiness; the internal worker probe exercises Redis
+and the tenant-scoped database boundary.
 
 ```mermaid
 flowchart LR
-    Visitor[Visitor] --> Web[Next.js marketing and dashboard shell]
-    TestPage[Host test page] --> Widget[Disconnected Web Component preview]
-    Developer[Developer or HTTP client] --> API[FastAPI health and status endpoints]
+    Visitor[Visitor] --> Web[Next.js project shell]
+    HostPage[Host test page] --> Widget[Disconnected Web Component]
+    Client[Developer or HTTP client] --> API[FastAPI]
+    API --> DB[(PostgreSQL and pgvector)]
+    API --> Redis[(Authenticated Redis)]
+    Probe[Internal probe command] --> Redis
+    Redis --> Worker[RQ worker]
+    Probe --> DB
+    Worker --> DB
+    Migration[Owner-only migration service] --> DB
 ```
 
-The [architecture guide](docs/architecture.md) separates this implemented
-foundation from the planned tenant-aware ingestion, retrieval and action flow.
+Read the [architecture guide](docs/architecture.md) for implemented boundaries
+and the planned ingestion, retrieval and approval flow.
 
 ## Getting started
 
-Install Node.js **26.13.0**, Python **3.15.2**, pnpm **12.18.0** and uv **0.13.7**.
-The versions are recorded in `.node-version`, `.python-version` and the package
-manifests. Install [gitleaks](https://github.com/gitleaks/gitleaks#installing)
-before pushing; the local pre-push hook requires it.
+Install Docker Engine or Docker Desktop with Docker Compose, then run:
 
 ```sh
 git clone https://github.com/iamhamzakhokhar/ai-knowledge-assistant.git
 cd ai-knowledge-assistant
+docker compose up --build --wait
+```
+
+Compose builds the applications, generates credentials inside private Docker
+volumes, starts PostgreSQL and Redis, applies migrations, and waits for the web,
+API and worker health checks. Password values do not need to be copied to host
+files or exported into the shell.
+
+Open [the marketing page](http://localhost:3000),
+[the dashboard shell](http://localhost:3000/dashboard),
+[API liveness](http://localhost:8000/health),
+[dependency readiness](http://localhost:8000/ready),
+[capability status](http://localhost:8000/api/v1/status) or
+[OpenAPI docs](http://localhost:8000/docs).
+
+Add the two fictional example teams and sources when needed:
+
+```sh
+docker compose --profile tools run --rm seed
+```
+
+Seeding is idempotent. These records demonstrate storage and tenant scoping;
+they are not an ingestion or retrieval feature.
+
+```sh
+docker compose down
+```
+
+The normal shutdown preserves project data and credentials. See the
+[infrastructure guide](docs/infrastructure.md) for probes, migrations, backups,
+restore verification and deliberate resets.
+
+With pnpm installed, `pnpm infra:up`, `pnpm infra:seed` and `pnpm infra:down`
+run the same Compose operations.
+
+### Editing without Docker
+
+Install Node.js **26.13.0**, Python **3.15.2**, pnpm **12.18.0** and uv
+**0.13.7**, then install dependencies and repository-local hooks:
+
+```sh
 pnpm install --frozen-lockfile
 uv sync --directory services/ai --locked
 pnpm setup:hooks
 ```
 
-Run the web app in one terminal:
+Run `pnpm dev` for the web app and `pnpm dev:api` in a separate terminal for the
+API shell. `/health` works without infrastructure; `/ready` returns `503` until
+database and Redis credentials/connections are configured. The complete local
+infrastructure flow runs inside Compose because its database and Redis ports
+are private.
 
-```sh
-pnpm dev
-```
-
-Run the API in another:
-
-```sh
-pnpm dev:api
-```
-
-Open [the marketing page](http://localhost:3000),
-[the dashboard shell](http://localhost:3000/dashboard),
-[API health](http://localhost:8000/health),
-[capability status](http://localhost:8000/api/v1/status) or
-[OpenAPI docs](http://localhost:8000/docs).
-
-For a separate HTML page, build the widget with
-`pnpm --filter @aka/widget build` and follow its
+Build the widget with `pnpm --filter @aka/widget build` and follow its
 [installation preview instructions](packages/widget/README.md).
 
-## Environment variables
+## Configuration
 
-The defaults work for the setup shell. [`.env.example`](.env.example) documents
-the public variable names; real secrets must stay outside version control.
+[`.env.example`](.env.example) documents supported variable names. The API reads
+its process environment and does not automatically load `.env` files. Compose
+provides its service configuration and secret-file paths directly.
 
-| Variable              | Default                 | Current use                                                            |
-| --------------------- | ----------------------- | ---------------------------------------------------------------------- |
-| `APP_ENV`             | `development`           | API environment: `development`, `test` or `production`.                |
-| `CORS_ORIGINS`        | `http://localhost:3000` | Comma-separated exact HTTP(S) origins for the API.                     |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Reserved public API base URL; the shell does not call the service yet. |
-
-The API reads exported environment variables and does not automatically load
-`.env` files. CORS restricts browser origins; it does not authenticate clients.
-Never put a provider key in a `NEXT_PUBLIC_*` variable.
+- `APP_ENV` selects `development`, `test` or `production`.
+- `CORS_ORIGINS` is a comma-separated list of exact browser origins; it does not
+  authenticate a client.
+- `NEXT_PUBLIC_API_URL` is reserved public browser configuration. The web shell
+  does not call the API yet. Never put a provider key in a `NEXT_PUBLIC_*` value.
+- `DATABASE_*` and `REDIS_*` configure internal connections. Password settings
+  point to mounted files; API and worker receive only application credentials.
+- `WEB_PORT` and `API_PORT` can override the default loopback ports `3000` and
+  `8000` for a Compose project.
 
 ## Running checks
 
-Install the browser used by the smoke tests once:
+Install the browser once, then run the repository checks:
 
 ```sh
 pnpm exec playwright install chromium
-```
-
-Then run the repository checks:
-
-```sh
 pnpm lint
 pnpm typecheck
 pnpm build
 pnpm test
 ```
 
-Use `pnpm test:api` or `pnpm test:browser` to run a single suite. Use `pnpm format`
-to apply the configured formatters. `pnpm setup:hooks` installs repository-local
-hooks: pre-commit checks formatting/lint, and pre-push scans Git history with
-gitleaks using redacted output.
+`pnpm test:api` runs unit tests without service connections; integration cases
+skip unless explicitly enabled. `pnpm test:browser` covers the web and widget
+shells. Use `pnpm format` to apply the configured formatters. Repository-local
+pre-commit checks formatting/lint; pre-push runs
+[gitleaks](https://github.com/gitleaks/gitleaks#installing) with redacted output.
 
-Current foundation validation on Node 26.13.0 and Python 3.15.2:
+For real service checks after starting and seeding Compose:
 
-- 15 API tests pass, including status behavior, configuration validation and exact-origin CORS handling.
-- 6 Chromium browser tests pass across desktop and mobile: navigation, widget keyboard behavior and safe greeting rendering.
-- API foundation coverage is 100% of 58 statements and 6 branches. This small scope does not represent coverage of the planned product.
-- Biome/Ruff checks, TypeScript checks, the web/widget production builds and Python wheel/source builds pass.
+```sh
+docker compose --profile test run --rm --build integration-tests
+```
 
-Live-model evaluations, complete accessibility conformance and Lighthouse scores are not measured yet. The CI badge links to the actual workflow result; it does not imply that planned features have been validated.
+`pnpm infra:test` is the equivalent repository shortcut.
+
+The integration suite exercises pgvector, role privileges, row-level security,
+connection-pool tenant reset, owner-only migration state, a real JSON worker
+probe, readiness and Redis authentication. Migration roundtrips use a separate
+disposable database. CI is configured to also check restart persistence and a
+backup/restore roundtrip in an isolated Compose project.
+
+The [CI workflow](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/ci.yml)
+is the source for actual run results and the measured combined coverage report.
+The [recorded infrastructure run](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42577536707)
+passed **104 Python tests** (81 unit and 23 real-service integration cases),
+reported **88% combined statement/branch coverage of the Python service**, and
+passed **6 desktop/mobile browser tests**. It also verified restart persistence
+and a database backup/restore roundtrip. These figures cover the implemented
+setup, not the planned AI product.
+
+Local unit results alone do not establish infrastructure or recovery behavior.
+Live-model evaluations, complete accessibility conformance and Lighthouse
+scores are not measured yet.
 
 ## Roadmap
 
-- [Setup](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/1): issues #1–#3 establish tooling, local services, migrations, CI and repository security.
-- [Core features](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/2): issues #4–#15 deliver tenancy, ingestion, retrieval, cited chat, widget integration, approvals, actions, analytics, billing and MCP.
-- [Quality](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/3): issues #16–#21 cover guardrails, limits, evaluations, integration tests, accessibility, performance and tracing.
+- [Setup](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/1): issues #1–#3 establish application shells, local services, migrations, CI and repository security.
+- [Core features](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/2): issues #4–#15 deliver authenticated tenancy, ingestion, retrieval, cited chat, widget integration, approvals, actions, analytics, billing and MCP.
+- [Quality](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/3): issues #16–#21 cover guardrails, limits, evaluations, wider integration coverage, accessibility, performance and tracing.
 - [Release](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/4): issues #22–#25 deliver the safe demo, deployment, documentation and v1.0.0.
 
 ## Deployment
 
 Deployment is planned in [issue #23](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/issues/23).
 The intended targets are Vercel for the web app and a supported host for the
-FastAPI service and background worker, with PostgreSQL/pgvector and Redis. No live
-deployment or deployment verification is claimed at this stage.
+FastAPI service and worker, with PostgreSQL/pgvector and Redis. Compose is for
+local development. No live deployment verification is claimed at this stage.
 
 ## Contributing and license
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the issue/branch/PR workflow and
-[AGENTS.md](AGENTS.md) for coding-agent instructions. Licensed under
-[MIT](LICENSE).
+[AGENTS.md](AGENTS.md) for coding-agent instructions. Licensed under [MIT](LICENSE).
