@@ -90,3 +90,20 @@ pin with an unverified `latest` range or present an installation as an integrati
 test.
 
 The production web build uses Next.js’s supported Webpack mode. Turbopack’s CSS subprocess requires local socket access unavailable in the initial restricted development environment; no application feature depends on a particular bundler.
+
+## Security tooling
+
+CodeQL Action **4.39.3** is pinned to commit
+`33d7b85da1a04171e211befe2c739303b9a4c066`, using its linked CodeQL **2.27.4**
+bundle for Actions, JavaScript/TypeScript and Python. See the
+[official action release](https://github.com/github/codeql-action/releases/tag/v4.39.3).
+
+CI installs [gitleaks **8.30.1**](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1)
+and [actionlint **1.7.12**](https://github.com/rhysd/actionlint/releases/tag/v1.7.12)
+from reviewed Linux archives. Their expected SHA256 hashes are committed in
+`scripts/install_security_tools.py` and checked before extraction/execution.
+Tool updates must change the reviewed version and expected hash together.
+
+Dependabot's configured ecosystem versions follow GitHub's service support;
+version-update configuration is separate from dependency-graph/advisory support.
+The pnpm 12 and image-update limitations are documented in [the security guide](security.md).

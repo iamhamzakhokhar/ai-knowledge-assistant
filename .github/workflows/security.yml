@@ -1,0 +1,65 @@
+name: Security
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "47 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Verify installer rejection controls
+        run: python scripts/check_security_installer.py
+      - name: Install checksum-pinned security tools
+        run: |
+          python scripts/install_security_tools.py --directory "$RUNNER_TEMP/security-tools"
+          echo "$RUNNER_TEMP/security-tools" >> "$GITHUB_PATH"
+      - name: Validate workflow definitions
+        run: actionlint
+      - name: Scan complete Git history
+        run: gitleaks git --redact=100 --no-banner --log-opts='--all --full-history --no-ext-diff' .
+      - name: Verify secret detection and redaction
+        run: python scripts/check_secret_scanner.py
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Install the reviewed dependency graph without lifecycle scripts
+        run: |
+          npm install --global pnpm@12.18.0
+          pnpm install --frozen-lockfile --ignore-scripts
+      - name: Audit application and development dependencies
+        run: pnpm audit --audit-level=high
+      - name: Verify audit rejects a known vulnerable temporary fixture
+        run: python scripts/check_dependency_audit.py

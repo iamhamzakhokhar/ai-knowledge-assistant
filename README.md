@@ -3,6 +3,8 @@
 An open-source AI knowledge assistant being built around cited answers and human-approved actions.
 
 [![CI](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/ci.yml)
+[![Security](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/security.yml/badge.svg)](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/security.yml)
+[![CodeQL](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/codeql.yml/badge.svg)](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/workflows/codeql.yml)
 
 Built by Hamza Zahid Khokhar.
 
@@ -135,8 +137,9 @@ run the same Compose operations.
 
 ### Editing without Docker
 
-Install Node.js **26.13.0**, Python **3.15.2**, pnpm **12.18.0** and uv
-**0.13.7**, then install dependencies and repository-local hooks:
+Install Node.js **26.13.0**, Python **3.15.2**, pnpm **12.18.0**, uv
+**0.13.7** and Gitleaks **8.30.1** (see [contributor setup](CONTRIBUTING.md)),
+then install dependencies and repository-local hooks:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -184,7 +187,7 @@ pnpm test
 `pnpm test:api` runs unit tests without service connections; integration cases
 skip unless explicitly enabled. `pnpm test:browser` covers the web and widget
 shells. Use `pnpm format` to apply the configured formatters. Repository-local
-pre-commit checks formatting/lint; pre-push runs
+pre-commit scans staged content for secrets and checks formatting/lint; pre-push runs
 [gitleaks](https://github.com/gitleaks/gitleaks#installing) with redacted output.
 
 For real service checks after starting and seeding Compose:
@@ -215,6 +218,12 @@ Live-model evaluations, complete accessibility conformance and Lighthouse
 scores are not measured yet.
 
 ## Roadmap
+
+Repository checks include full-history secret scanning, staged-content hooks,
+workflow validation, dependency auditing, and CodeQL for Actions, JavaScript/
+TypeScript, and Python. Dependabot checks five dependency ecosystems weekly.
+Read the [security guide](docs/security.md) for the pnpm dependency-graph limitation
+and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
 - [Setup](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/1): issues #1–#3 establish application shells, local services, migrations, CI and repository security.
 - [Core features](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/milestone/2): issues #4–#15 deliver authenticated tenancy, ingestion, retrieval, cited chat, widget integration, approvals, actions, analytics, billing and MCP.
