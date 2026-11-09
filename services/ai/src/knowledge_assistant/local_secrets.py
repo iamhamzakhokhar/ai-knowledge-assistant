@@ -15,33 +15,50 @@ def secure_directory(path: Path, group: int) -> None:
     path.chmod(0o750)
 
 
-def write_private(path: Path, value: str, group: int) -> None:
+def write_private(path: Path, value: str, user: int, group: int) -> None:
     """Atomically replace a generated file without exposing its value in arguments."""
     if path.is_symlink():
         raise ValueError("Secret files must not be symbolic links")
     temporary = path.with_suffix(".tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o440)
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
         with os.fdopen(descriptor, "w") as stream:
             stream.write(value)
+            stream.flush()
             if os.geteuid() == 0:
-                os.fchown(stream.fileno(), 0, group)
+                os.fchown(stream.fileno(), user, group)
+            os.fchmod(stream.fileno(), 0o400)
+            os.fsync(stream.fileno())
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
 
 
-def existing_or_new(path: Path, group: int) -> str:
+def existing_or_new(path: Path, user: int, group: int) -> str:
     if path.is_symlink():
         raise ValueError("Secret files must not be symbolic links")
     if path.exists():
         value = path.read_text().strip()
         if re.fullmatch(r"[0-9a-f]{64}", value) is None:
             raise ValueError("An existing development secret is invalid; it was not changed")
+        if os.geteuid() == 0:
+            os.chown(path, user, group)
+        path.chmod(0o400)
         return value
     value = secrets.token_hex(32)
-    write_private(path, value + "\n", group)
+    write_private(path, value + "\n", user, group)
     return value
+
+
+def ensure_copy(path: Path, value: str, user: int, group: int) -> None:
+    """Give another service UID its own read-only copy without rotating credentials."""
+    if path.is_symlink():
+        raise ValueError("Secret files must not be symbolic links")
+    if path.exists():
+        if not secrets.compare_digest(existing_or_new(path, user, group), value):
+            raise ValueError("Secret volumes disagree; existing credentials were preserved")
+    else:
+        write_private(path, value + "\n", user, group)
 
 
 def initialize(
@@ -49,8 +66,11 @@ def initialize(
     application: Path,
     redis: Path,
     *,
+    postgres_user: int = 999,
     postgres_group: int = 999,
+    application_user: int = 10001,
     application_group: int = 10001,
+    redis_user: int = 999,
     redis_group: int = 999,
 ) -> None:
     for directory, group in (
@@ -59,15 +79,21 @@ def initialize(
         (redis, redis_group),
     ):
         secure_directory(directory, group)
-    existing_or_new(postgres / "postgres_password", postgres_group)
-    existing_or_new(application / "database_password", application_group)
-    redis_password = existing_or_new(application / "redis_password", application_group)
-    redis_file = redis / "redis_password"
-    if redis_file.exists():
-        if not secrets.compare_digest(existing_or_new(redis_file, redis_group), redis_password):
-            raise ValueError("Redis secret volumes disagree; existing credentials were preserved")
-    else:
-        write_private(redis_file, redis_password + "\n", redis_group)
+    if not (postgres / "postgres_password").exists() and (postgres / "migration_password").exists():
+        raise ValueError(
+            "PostgreSQL secret copies are incomplete; existing credentials were preserved"
+        )
+    postgres_password = existing_or_new(
+        postgres / "postgres_password", postgres_user, postgres_group
+    )
+    ensure_copy(
+        postgres / "migration_password", postgres_password, application_user, application_group
+    )
+    existing_or_new(application / "database_password", application_user, application_group)
+    redis_password = existing_or_new(
+        application / "redis_password", application_user, application_group
+    )
+    ensure_copy(redis / "redis_password", redis_password, redis_user, redis_group)
     write_private(
         redis / "redis.conf",
         "\n".join(
@@ -83,6 +109,7 @@ def initialize(
                 "",
             ]
         ),
+        redis_user,
         redis_group,
     )
 

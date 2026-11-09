@@ -53,19 +53,29 @@ web joins frontend. Only web and API publish host ports, both bound to
 `secret-init` runs once per startup without network access. It generates missing
 random credentials and preserves existing values in three named Docker volumes:
 
-- `postgres-secrets` stores the owner/admin database password, read by PostgreSQL,
-  the migration service and opt-in integration tests.
+- `postgres-secrets` stores `postgres_password` for PostgreSQL UID `999` and an
+  identical `migration_password` copy for migration/test UID `10001`.
 - `app-secrets` stores the application database password and Redis password. API,
   worker, seed and tests mount it read-only; migrations also read it to provision
   the application role.
 - `redis-secrets` stores Redis's password and generated server configuration,
   mounted read-only by Redis.
 
-The initializer writes restricted files and directories for the intended service
-groups. API and worker run as UID/GID `10001` and receive no owner password.
+The initializer publishes files as owner-only read (`0400`), owned by their
+consuming UID: PostgreSQL/Redis use `999`, application services use `10001`.
+Root-owned directories use `0750`; migration/test supplementary group `999`
+grants directory traversal without access to the PostgreSQL-owned file. API and
+worker run as UID/GID `10001` and receive no owner password.
 Credentials remain inside these private Docker volumes; normal startup needs no
 host plaintext secret file, copied password, or password environment export.
 Connection settings carry mounted file paths rather than secret values.
+
+On an existing development volume, startup validates and preserves passwords,
+tightens legacy group-readable files and creates the migration copy without
+rotation. Conflicting copies or a missing canonical PostgreSQL file with a
+surviving migration copy fail safely; initialization does not overwrite the
+surviving credential. Rebuild and run the normal startup command to apply this
+permission upgrade; no volume reset is required.
 
 The database role `aka_owner` is reserved for local database administration and
 migrations. Runtime `aka_app` is a non-owner role without superuser, inherited
