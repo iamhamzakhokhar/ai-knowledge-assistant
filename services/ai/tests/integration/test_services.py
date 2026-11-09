@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 from urllib.request import urlopen
 
 import pytest
@@ -30,6 +31,23 @@ def test_web_homepage_is_served() -> None:
     with urlopen(base_url, timeout=10) as response:
         assert response.status == 200
         assert "KnowledgeDesk" in response.read().decode("utf-8")
+
+
+def test_secret_files_are_owner_only_for_their_consuming_container() -> None:
+    assert os.geteuid() == 10001
+    for path in (
+        Path(os.environ["ADMIN_DATABASE_PASSWORD_FILE"]),
+        Path(os.environ["APP_DATABASE_PASSWORD_FILE"]),
+        Path(os.environ["REDIS_PASSWORD_FILE"]),
+    ):
+        assert path.stat().st_mode & 0o777 == 0o400
+        assert path.stat().st_uid == os.geteuid()
+        assert path.read_bytes()
+    postgres_only = Path("/run/postgres-secrets/postgres_password")
+    assert postgres_only.stat().st_mode & 0o777 == 0o400
+    assert postgres_only.stat().st_uid == 999
+    with pytest.raises(PermissionError):
+        postgres_only.read_bytes()
 
 
 def test_redis_rejects_connections_without_the_mounted_password(

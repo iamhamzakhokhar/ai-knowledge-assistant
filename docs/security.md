@@ -63,6 +63,15 @@ A successful analysis job shows that scanning completed. The separate native
 An intentional critical command-injection fixture failed this required result
 while all three analysis jobs passed; see the validation evidence below.
 
+PR results focus on alerts introduced by the change. Inspect the default-branch
+baseline after initial setup and scanner upgrades as well. The first `main`
+Python baseline found existing group-readable credential creation
+(`py/overly-permissive-file`) that the initial PR results had not reported.
+The initializer now creates owner-only files for each consuming container UID;
+PostgreSQL and migrations use separate identical copies. Existing values are
+preserved when legacy permissions are tightened. See the
+[credential upgrade instructions](infrastructure.md#connections-and-local-credentials).
+
 ## Dependency updates and audits
 
 [Dependabot configuration](../.github/dependabot.yml) covers five ecosystems:
@@ -91,9 +100,12 @@ There are known coverage limits:
   high/critical advisories reported by the registry. This is a separate check: it
   does **not** restore GitHub's JavaScript dependency graph, native alerts or
   security-update coverage. It also depends on registry advisory availability.
-- The native `uv` updater is configured. Compatibility and successful lockfile
-  updates are not established until its first native run and proposed update are
-  inspected; configuration alone is not an end-to-end verification.
+- Initial native version checks succeeded for
+  [uv](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42654996130),
+  [pnpm](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42654990864),
+  Docker, Actions and Compose. Logs recognized the current versions and reported
+  no update needed. No update PR was opened, so actual lockfile rewriting and
+  proposed-update validation remain untested.
 - External images used by multi-stage `COPY --from`, including the pinned uv
   image in the Python Dockerfile, need manual review. Do not assume an image
   updater will revise that reference with ordinary `FROM` updates. Review the uv

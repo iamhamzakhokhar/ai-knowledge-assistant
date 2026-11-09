@@ -91,6 +91,9 @@ credentials inside three private named volumes: `postgres-secrets`,
 can read the owner credential. API and worker mount only the application volume
 read-only and run as UID/GID `10001`; they receive no owner password. Redis reads
 its private password/config volume. Repeated startup preserves existing secrets.
+Files are owner-only (`0400`) for the consuming service UID. PostgreSQL and
+migration/test UIDs receive separate identical files in the PostgreSQL volume;
+supplementary group access permits directory traversal only.
 
 PostgreSQL data is mounted at `/var/lib/postgresql`, as required by the selected
 PostgreSQL 18 image layout. Redis persists data under `/data` with append-only

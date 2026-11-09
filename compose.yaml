@@ -79,7 +79,7 @@ services:
     environment:
       <<: *app-environment
       DATABASE_USER: aka_owner
-      DATABASE_PASSWORD_FILE: /run/postgres-secrets/postgres_password
+      DATABASE_PASSWORD_FILE: /run/postgres-secrets/migration_password
       APP_DATABASE_PASSWORD_FILE: /run/app-secrets/database_password
     depends_on:
       postgres:
@@ -185,7 +185,7 @@ services:
       <<: *app-environment
       APP_ENV: test
       AKA_INTEGRATION_TESTS: "1"
-      ADMIN_DATABASE_PASSWORD_FILE: /run/postgres-secrets/postgres_password
+      ADMIN_DATABASE_PASSWORD_FILE: /run/postgres-secrets/migration_password
       ADMIN_DATABASE_USER: aka_owner
       APP_DATABASE_PASSWORD_FILE: /run/app-secrets/database_password
       API_TEST_URL: http://api:8000
