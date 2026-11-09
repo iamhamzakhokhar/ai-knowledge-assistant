@@ -47,14 +47,6 @@ jobs:
         run: |
           pnpm build
           uv build --directory services/ai
-      - name: Inject disposable test regression
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          Path('services/ai/tests/test_ci_negative_control.py').write_text(
-              'def test_intentional_ci_failure():\n    assert False, "Issue 3 disposable test control"\n'
-          )
-          PY
       - name: API unit tests
         run: uv run --directory services/ai pytest
       - name: Compose integration, coverage and recovery
