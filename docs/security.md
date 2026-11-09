@@ -50,15 +50,18 @@ code scanning. TypeScript 7.0 is included in the
 [language support table](https://codeql.github.com/docs/codeql-overview/supported-languages-and-frameworks/);
 [CodeQL 2.27.3 introduced Python 3.15 syntax support](https://github.blog/changelog/2026-11-03-codeql-2-27-3-adds-python-3-15-features-and-json-data-extensions/).
 
-Stable check names are planned as `Checks`, `Security`, `Dependency audit`,
-`CodeQL (actions)`, `CodeQL (javascript-typescript)` and `CodeQL (python)`. Required-check settings
-must use the actual observed contexts after successful runs. Manual-dispatch
-runs are useful diagnostics and do not replace pull-request-triggered checks.
+Main requires `Checks`, `Security`, `Dependency audit`, `CodeQL (actions)`,
+`CodeQL (javascript-typescript)` and `CodeQL (python)` from the GitHub Actions
+app (15368), plus the finding-based `CodeQL` result from GitHub Advanced Security
+(57789). These exact contexts were observed passing before being required.
+Protection includes administrators, requires an up-to-date PR and resolved
+conversations, and prevents force pushes and deletion. Manual-dispatch runs are
+diagnostics and do not replace pull-request-triggered checks.
 
-A successful analysis job shows that scanning completed; it does not mean every
-finding blocks a merge. Alert-based enforcement requires GitHub's native
-code-scanning merge-protection rule and an explicitly chosen severity policy.
-Its live configuration and result are a separate verification step.
+A successful analysis job shows that scanning completed. The separate native
+`CodeQL` result applies GitHub's default error/high/critical finding policy.
+An intentional critical command-injection fixture failed this required result
+while all three analysis jobs passed; see the validation evidence below.
 
 ## Dependency updates and audits
 
@@ -105,18 +108,20 @@ secret scanning and push protection are enabled. Default workflow tokens have
 read permissions and cannot approve pull requests. Workflow files alone do not
 enable these settings.
 
-Code-scanning alert-gate verification and the new required check contexts are
-verified through actual workflow runs before merge. Enabling dependency alerts
-does not remove the pnpm dependency-graph limitation described above.
+Required contexts and the CodeQL finding gate were verified through actual PR
+runs, including deliberate failures. Enabling dependency alerts does not remove
+the pnpm dependency-graph limitation described above.
 
 ## Validation and negative controls
 
-After installing the tools, the intended validation commands include:
+After installing the tools, run:
 
 ```sh
 actionlint .github/workflows/*.yml
 python3 scripts/check_secret_scanner.py
+python3 scripts/check_security_installer.py
 pnpm audit --audit-level=high
+python3 scripts/check_dependency_audit.py
 ```
 
 The secret-scanner control creates an isolated temporary Git repository outside
@@ -126,12 +131,28 @@ pre-push command against clean fixture history. It does not commit the generated
 token-shaped value or use a real credential. Reports remain in the temporary
 fixture and generated content is not printed.
 
-Additional negative controls should use isolated fixtures with synthetic data:
-an invalid workflow must fail validation, a deliberate high-severity dependency
-fixture must fail the audit, and a representative static-analysis finding must
-be observed through the chosen native alert gate. Keep these controls out of the
-application's real history and document what actually ran. No passed counts,
-complete protection claims or response guarantees are implied by this plan.
+The installer controls reject changed checksums before archive parsing, unsafe
+or duplicate members, and empty binaries. The audit control generates only a
+temporary lockfile for a known vulnerable lodash version and requires the real
+audit to report its high-severity advisory. It never installs or executes that
+package. Both controls passed locally and in the security workflow.
+
+[Issue #3's disposable PR](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/pull/29)
+exercised these failures on a separate branch that must never be merged:
+
+| Control                                    | Observed required-check result                                                                                                                                                                                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime-generated invalid TypeScript       | [`Checks` failed at Lint and formatting](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42650956102).                                                                                                                                  |
+| Runtime-generated failing unit test        | [`Checks` failed at API unit tests](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42651160510).                                                                                                                                       |
+| Unexecuted Flask command-injection fixture | [Native `CodeQL` failed](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/runs/129278855198) on critical `py/command-line-injection`; [all analysis jobs passed](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42651423741). |
+
+The fixtures were removed from the validation branch. They never enter the
+feature PR or `main`; synthetic token-shaped values are never committed even to
+the disposable branch. The clean feature PR's initial
+[CI](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42647945876),
+[Security](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42647945957)
+and [CodeQL](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/actions/runs/42647946293)
+runs passed, and all three language analyses uploaded with zero findings.
 
 ## Exposure response
 

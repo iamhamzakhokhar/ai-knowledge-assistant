@@ -137,8 +137,9 @@ run the same Compose operations.
 
 ### Editing without Docker
 
-Install Node.js **26.13.0**, Python **3.15.2**, pnpm **12.18.0** and uv
-**0.13.7**, then install dependencies and repository-local hooks:
+Install Node.js **26.13.0**, Python **3.15.2**, pnpm **12.18.0**, uv
+**0.13.7** and Gitleaks **8.30.1** (see [contributor setup](CONTRIBUTING.md)),
+then install dependencies and repository-local hooks:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -186,7 +187,7 @@ pnpm test
 `pnpm test:api` runs unit tests without service connections; integration cases
 skip unless explicitly enabled. `pnpm test:browser` covers the web and widget
 shells. Use `pnpm format` to apply the configured formatters. Repository-local
-pre-commit checks formatting/lint; pre-push runs
+pre-commit scans staged content for secrets and checks formatting/lint; pre-push runs
 [gitleaks](https://github.com/gitleaks/gitleaks#installing) with redacted output.
 
 For real service checks after starting and seeding Compose:
