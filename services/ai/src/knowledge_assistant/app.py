@@ -4,10 +4,12 @@ from typing import Literal
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from knowledge_assistant import __version__
 from knowledge_assistant.config import Settings
+from knowledge_assistant.readiness import check_dependencies
 
 
 class HealthResponse(BaseModel):
@@ -51,6 +53,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def status() -> ServiceStatus:
         """Expose the current implementation stage without configuration or secrets."""
         return ServiceStatus(capabilities=Capabilities())
+
+    @application.get("/ready", tags=["operations"], response_model=None)
+    def ready() -> JSONResponse:
+        """Readiness requires authenticated database and Redis connections."""
+        available = check_dependencies(config)
+        return JSONResponse(
+            {"status": "ready" if available else "unavailable"},
+            status_code=200 if available else 503,
+        )
 
     return application
 
