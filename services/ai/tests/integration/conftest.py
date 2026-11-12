@@ -117,8 +117,7 @@ def redis_connection(integration_settings: Settings) -> Iterator[Redis]:
         connection.close()
 
 
-@pytest.fixture
-def disposable_database(admin_connection: psycopg.Connection) -> Iterator[str]:
+def _temporary_database(admin_connection: psycopg.Connection) -> Iterator[str]:
     """Create and drop one uniquely named database, never the shared application database."""
     name = f"aka_test_{uuid4().hex}"
     assert name.startswith("aka_test_") and len(name) == 41
@@ -129,3 +128,13 @@ def disposable_database(admin_connection: psycopg.Connection) -> Iterator[str]:
         admin_connection.execute(
             sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(name))
         )
+
+
+@pytest.fixture
+def disposable_database(admin_connection: psycopg.Connection) -> Iterator[str]:
+    yield from _temporary_database(admin_connection)
+
+
+@pytest.fixture(scope="module")
+def auth_disposable_database(admin_connection: psycopg.Connection) -> Iterator[str]:
+    yield from _temporary_database(admin_connection)

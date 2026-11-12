@@ -20,4 +20,4 @@ CMD ["pytest", "/app/tests", "-o", "cache_dir=/test-run/pytest-cache", "--cov=kn
 
 FROM base AS runtime
 USER 10001:10001
-CMD ["uvicorn", "knowledge_assistant.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "knowledge_assistant.app:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]

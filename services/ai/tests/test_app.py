@@ -36,9 +36,10 @@ def test_status_reports_only_implemented_capabilities(client: TestClient) -> Non
     assert response.json() == {
         "service": "ai-knowledge-assistant",
         "version": __version__,
-        "stage": "setup",
+        "stage": "core",
         "capabilities": {
             "health": True,
+            "authentication": True,
             "ingestion": False,
             "retrieval": False,
             "chat": False,

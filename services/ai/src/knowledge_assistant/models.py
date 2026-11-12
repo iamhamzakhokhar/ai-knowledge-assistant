@@ -53,3 +53,65 @@ job_runs = sa.Table(
     ),
 )
 sa.Index("ix_job_runs_team_id", job_runs.c.team_id)
+
+auth_users = sa.Table(
+    "auth_users",
+    metadata,
+    sa.Column("id", UUID(as_uuid=True), primary_key=True),
+    sa.Column("email", sa.String(254), nullable=False, unique=True),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+)
+
+auth_credentials = sa.Table(
+    "auth_credentials",
+    metadata,
+    sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("auth_users.id"), primary_key=True),
+    sa.Column("password_hash", sa.Text(), nullable=False),
+)
+
+auth_sessions = sa.Table(
+    "auth_sessions",
+    metadata,
+    sa.Column("token_hash", sa.LargeBinary(), primary_key=True),
+    sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("auth_users.id"), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+)
+sa.Index("ix_auth_sessions_user_id", auth_sessions.c.user_id)
+
+team_memberships = sa.Table(
+    "team_memberships",
+    metadata,
+    sa.Column("team_id", UUID(as_uuid=True), sa.ForeignKey("teams.id"), primary_key=True),
+    sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("auth_users.id"), primary_key=True),
+    sa.Column("role", sa.Text(), nullable=False),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+    sa.CheckConstraint("role IN ('owner', 'admin', 'member')", name="ck_team_memberships_role"),
+)
+sa.Index("ix_team_memberships_user_id", team_memberships.c.user_id)
+sa.Index(
+    "uq_team_memberships_one_owner",
+    team_memberships.c.team_id,
+    unique=True,
+    postgresql_where=team_memberships.c.role == "owner",
+)
+
+team_invites = sa.Table(
+    "team_invites",
+    metadata,
+    sa.Column("id", UUID(as_uuid=True), primary_key=True),
+    sa.Column("team_id", UUID(as_uuid=True), sa.ForeignKey("teams.id"), nullable=False),
+    sa.Column("email", sa.String(254), nullable=False),
+    sa.Column("role", sa.Text(), nullable=False),
+    sa.Column("token_hash", sa.LargeBinary(), nullable=False, unique=True),
+    sa.Column("created_by", UUID(as_uuid=True), sa.ForeignKey("auth_users.id"), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+    sa.CheckConstraint("role IN ('admin', 'member')", name="ck_team_invites_role"),
+)
