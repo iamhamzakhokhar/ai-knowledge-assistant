@@ -18,8 +18,8 @@ that extracts text from uploaded documents.
 
 Users can create an account, create a team, or join by invitation. Every team
 request checks the current membership and role on the server. Teams can upload
-PDF, DOCX, and Markdown files and preview the extracted text. Website ingestion,
-retrieval, model-generated chat, citations, agent actions, analytics, billing
+PDF, DOCX, and Markdown files, import public website URLs and sitemaps, and
+preview the extracted text. Retrieval, model-generated chat, citations, agent actions, analytics, billing
 and MCP are **not implemented yet**. The marketing answer
 illustration uses fictional content. No model or identity provider key is needed
 for local development.
@@ -49,6 +49,8 @@ for implementation progress.
 - [Private document ingestion](docs/document-ingestion.md) with a JSON RQ worker,
   status tracking, retries, and text previews. Only team owners and admins can
   upload and retry.
+- [Website ingestion](docs/website-ingestion.md) with bounded crawls, page
+  provenance, failure diagnostics, and recrawls.
 - Compose health checks, persistent volumes, separated local credentials,
   and an opt-in integration/recovery test workflow.
 

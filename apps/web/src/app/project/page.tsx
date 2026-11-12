@@ -196,16 +196,17 @@ export default function ProjectPage() {
                 </span>
                 <div>
                   <h3>Team workspace</h3>
-                  <p>Manage team membership, upload documents, and preview extracted text.</p>
+                  <p>
+                    Manage team membership, upload documents, crawl websites, and preview extracted
+                    text.
+                  </p>
                 </div>
               </div>
               <div className="scope-notice">
                 <Icon name="message" />
                 <div>
                   <strong>The assistant is still being built.</strong>
-                  <p>
-                    Upcoming milestones cover website sources, live chat, billing, and analytics.
-                  </p>
+                  <p>Upcoming milestones cover live chat, billing, and analytics.</p>
                 </div>
               </div>
               <a href={`${repository}/issues`} className="text-link">

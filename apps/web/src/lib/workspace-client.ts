@@ -12,7 +12,7 @@ export function useWorkspaceAction(requiresSession = true) {
   async function submit<T>(
     path: string,
     method: Method,
-    payload: Record<string, string> | File = {},
+    payload: Record<string, string | boolean> | File = {},
     messages: Partial<Record<number, string>> = {},
   ): Promise<{ data: T; status: number } | null> {
     if (running.current) return null;

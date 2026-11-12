@@ -139,6 +139,27 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  website-worker:
+    <<: *ai-image
+    command: ["python", "-m", "knowledge_assistant.website_jobs"]
+    mem_limit: 512m
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - app-secrets:/run/app-secrets:ro
+    networks: [backend, website-egress]
+    healthcheck:
+      test: ["CMD", "python", "-m", "knowledge_assistant.website_jobs", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -198,6 +219,8 @@ services:
         condition: service_healthy
       worker:
         condition: service_healthy
+      website-worker:
+        condition: service_healthy
       web:
         condition: service_healthy
     volumes:
@@ -209,6 +232,7 @@ networks:
   backend:
     internal: true
   frontend:
+  website-egress:
 
 volumes:
   postgres-data:

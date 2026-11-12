@@ -5,10 +5,12 @@ import { Brand } from "@/components/brand";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { Icon } from "@/components/icons";
 import { InviteForm, MembershipActions, SignOutButton, TeamForm } from "@/components/team-forms";
+import { WebsitesPanel } from "@/components/websites-panel";
 import {
   parseDocuments,
   parseRoster,
   parseSession,
+  parseWebsites,
   roleName,
   type Team,
   teamUrl,
@@ -96,13 +98,14 @@ export default async function DashboardPage({
   const requestedTeam = (await searchParams).team;
   const selected =
     requestedTeam === undefined ? teams[0] : teams.find((team) => team.id === requestedTeam);
-  const [roster, documents] = selected
+  const [roster, documents, websites] = selected
     ? await Promise.all([
         readWorkspace(`/api/v1/teams/${selected.id}/members`, cookie, parseRoster),
         readWorkspace(`/api/v1/teams/${selected.id}/documents`, cookie, parseDocuments),
+        readWorkspace(`/api/v1/teams/${selected.id}/websites`, cookie, parseWebsites),
       ])
-    : [null, null];
-  if (roster?.status === 401 || documents?.status === 401) redirect("/login");
+    : [null, null, null];
+  if ([roster, documents, websites].some((result) => result?.status === 401)) redirect("/login");
 
   return (
     <div className="dashboard-layout workspace-layout">
@@ -165,6 +168,11 @@ export default async function DashboardPage({
                 teamId={selected.id}
                 canManage={selected.role !== "member"}
                 initialDocuments={documents?.data?.documents ?? null}
+              />
+              <WebsitesPanel
+                teamId={selected.id}
+                canManage={selected.role !== "member"}
+                initialWebsites={websites?.data?.websites ?? null}
               />
               {selected.role !== "member" && (
                 <InviteForm teamId={selected.id} canInviteAdmins={selected.role === "owner"} />

@@ -164,3 +164,44 @@ document_originals = sa.Table(
         "octet_length(data) BETWEEN 1 AND 5242880", name="ck_document_originals_byte_limit"
     ),
 )
+
+websites = sa.Table(
+    "websites",
+    metadata,
+    sa.Column("team_id", UUID(as_uuid=True), sa.ForeignKey("teams.id"), primary_key=True),
+    sa.Column("id", UUID(as_uuid=True), primary_key=True),
+    sa.Column("url", sa.Text(), nullable=False),
+    sa.Column("sitemap", sa.Boolean(), nullable=False),
+    sa.Column("requested_by", UUID(as_uuid=True), sa.ForeignKey("auth_users.id"), nullable=False),
+    sa.Column("status", sa.Text(), nullable=False),
+    sa.Column("attempt", sa.Integer(), nullable=False),
+    sa.Column("lease_until", sa.DateTime(timezone=True)),
+    sa.Column("published_attempt", sa.Integer()),
+    sa.Column("pages", JSONB(none_as_null=True)),
+    sa.Column("working_pages", JSONB(), nullable=False, server_default=sa.text("'[]'::jsonb")),
+    sa.Column("error", sa.Text()),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+    sa.Column(
+        "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+    sa.UniqueConstraint("team_id", "url", "sitemap", name="uq_websites_team_url_sitemap"),
+    sa.CheckConstraint("octet_length(url) BETWEEN 1 AND 2048", name="ck_websites_url_size"),
+    sa.CheckConstraint(
+        "status IN ('queued', 'processing', 'completed', 'failed')", name="ck_websites_status"
+    ),
+    sa.CheckConstraint("attempt BETWEEN 1 AND 3", name="ck_websites_attempt"),
+    sa.CheckConstraint(
+        "(status IN ('queued', 'processing')) = (lease_until IS NOT NULL)", name="ck_websites_lease"
+    ),
+    sa.CheckConstraint("(status = 'failed') = (error IS NOT NULL)", name="ck_websites_error"),
+    sa.CheckConstraint(
+        "(published_attempt IS NULL) = (pages IS NULL) AND "
+        "(published_attempt IS NULL OR published_attempt BETWEEN 1 AND attempt) AND "
+        "(status <> 'completed' OR published_attempt IS NOT DISTINCT FROM attempt)",
+        name="ck_websites_publication",
+    ),
+    sa.CheckConstraint("jsonb_array_length(pages) BETWEEN 1 AND 24", name="ck_websites_pages"),
+    sa.CheckConstraint("jsonb_array_length(working_pages) <= 24", name="ck_websites_working_pages"),
+)

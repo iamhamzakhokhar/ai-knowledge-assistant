@@ -98,6 +98,7 @@ def test_migrations_roundtrip_and_seed_remains_idempotent(
                 "team_invites",
                 "documents",
                 "document_originals",
+                "websites",
             ):
                 assert (
                     connection.scalar(text("SELECT to_regclass(:table)"), {"table": table}) is None

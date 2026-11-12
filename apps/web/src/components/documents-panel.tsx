@@ -1,20 +1,15 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import {
-  type DocumentDetail,
-  type DocumentStatus,
-  type DocumentSummary,
-  documentUploadLimit,
-} from "@/lib/workspace";
+import { type DocumentDetail, type DocumentSummary, documentUploadLimit } from "@/lib/workspace";
 import { useWorkspaceAction } from "@/lib/workspace-client";
+import {
+  readWorkspaceData,
+  statusName,
+  useWorkspaceCollection,
+  WorkspaceReadError,
+} from "@/lib/workspace-collection";
 
-const statusName: Record<DocumentStatus, string> = {
-  queued: "Queued",
-  processing: "Processing",
-  completed: "Completed",
-  failed: "Failed",
-};
 const formatName = { pdf: "PDF", docx: "DOCX", markdown: "Markdown" };
 const maximumAttempts = 3;
 const failureMessage = new Map([
@@ -27,22 +22,6 @@ const failureMessage = new Map([
   ["scanned_pdf", "This PDF contains scanned pages without extractable text."],
   ["document_limits_exceeded", "The file exceeds the extraction limits."],
 ]);
-
-class DocumentReadError extends Error {
-  constructor(readonly status: number) {
-    super("Document request failed");
-  }
-}
-
-async function readDocumentData<T>(path: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(`/api/workspace/${path}`, {
-    credentials: "same-origin",
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) throw new DocumentReadError(response.status);
-  return (await response.json()) as T;
-}
 
 function documentFailure(document: DocumentSummary): string {
   return failureMessage.get(document.error ?? "") ?? "Text extraction failed for this file.";
@@ -194,11 +173,11 @@ function DocumentPreview({
     request.current = controller;
     setError("");
     try {
-      const data = await readDocumentData<DocumentDetail>(endpoint, controller.signal);
+      const data = await readWorkspaceData<DocumentDetail>(endpoint, controller.signal);
       if (!controller.signal.aborted) setDetail(data);
     } catch (cause) {
       if (controller.signal.aborted) return;
-      if (cause instanceof DocumentReadError && cause.status === 401) {
+      if (cause instanceof WorkspaceReadError && cause.status === 401) {
         window.location.replace("/login");
         return;
       }
@@ -272,83 +251,19 @@ export function DocumentsPanel({
   initialDocuments: DocumentSummary[] | null;
 }) {
   const path = `teams/${teamId}/documents`;
-  const [documents, setDocuments] = useState(initialDocuments);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(initialDocuments ? "" : "Documents could not be loaded.");
-  const activeRefresh = useRef<AbortController | null>(null);
   const previewTrigger = useRef<HTMLButtonElement | null>(null);
+  const clearPreview = useCallback(() => setPreviewId(null), []);
+  const {
+    items: documents,
+    error,
+    refreshing,
+    refresh,
+    saveItem: saveDocument,
+  } = useWorkspaceCollection(path, "documents", initialDocuments, clearPreview);
   const preview = documents?.find(
     (document) => document.id === previewId && document.status === "completed",
   );
-  const hasActiveDocuments = documents?.some(
-    (document) => document.status === "queued" || document.status === "processing",
-  );
-
-  const refresh = useCallback(
-    async (showProgress = false) => {
-      if (activeRefresh.current) return;
-      const controller = new AbortController();
-      activeRefresh.current = controller;
-      if (showProgress) setRefreshing(true);
-      try {
-        const result = await readDocumentData<{ documents: DocumentSummary[] }>(
-          path,
-          controller.signal,
-        );
-        if (!controller.signal.aborted) {
-          setDocuments(result.documents);
-          setError("");
-        }
-      } catch (cause) {
-        if (controller.signal.aborted) return;
-        if (cause instanceof DocumentReadError && cause.status === 401) {
-          window.location.replace("/login");
-          return;
-        }
-        if (cause instanceof DocumentReadError && (cause.status === 403 || cause.status === 404)) {
-          setDocuments(null);
-          setPreviewId(null);
-          setError("This team’s documents are unavailable.");
-        } else {
-          setError("Documents could not be refreshed. Try again shortly.");
-        }
-      } finally {
-        if (activeRefresh.current === controller) {
-          activeRefresh.current = null;
-          if (!controller.signal.aborted && showProgress) setRefreshing(false);
-        }
-      }
-    },
-    [path],
-  );
-
-  useEffect(() => () => activeRefresh.current?.abort(), []);
-
-  useEffect(() => {
-    if (!hasActiveDocuments) return;
-    function refreshVisibleDocuments() {
-      if (document.visibilityState === "visible") void refresh();
-    }
-    const timer = window.setInterval(refreshVisibleDocuments, 2000);
-    document.addEventListener("visibilitychange", refreshVisibleDocuments);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshVisibleDocuments);
-    };
-  }, [hasActiveDocuments, refresh]);
-
-  function saveDocument(document: DocumentSummary) {
-    // A list request started before this mutation can return older state.
-    activeRefresh.current?.abort();
-    activeRefresh.current = null;
-    setRefreshing(false);
-    setDocuments((current) => [
-      document,
-      ...(current ?? []).filter((item) => item.id !== document.id),
-    ]);
-    setError("");
-  }
 
   function closePreview() {
     setPreviewId(null);

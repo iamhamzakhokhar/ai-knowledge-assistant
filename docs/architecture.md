@@ -1,7 +1,7 @@
 # Architecture
 
 KnowledgeDesk is a portfolio project by Hamza Zahid Khokhar. It implements local
-infrastructure, accounts, team authorization and document extraction. Search
+infrastructure, accounts, team authorization, document extraction and website ingestion. Search
 and AI workflows remain on the roadmap.
 
 ## Implemented architecture
@@ -37,7 +37,7 @@ reports that the API process can respond. Readiness returns `200` after the
 application database connection executes `SELECT 1` and authenticated Redis
 responds to `PING`; failures return a generic `503` without connection details.
 Readiness does not assert worker execution or AI capabilities. The status endpoint
-reports document extraction separately from retrieval, chat, agents and MCP.
+reports document and website ingestion separately from retrieval, chat, agents and MCP.
 
 ### Storage and the internal tenant boundary
 
@@ -97,13 +97,21 @@ states. Queue/result retention and execution time are bounded. There is no
 public probe enqueue route. Possession of the private service
 credential is a trusted infrastructure boundary, not an end-user permission.
 
+### Website ingestion
+
+A dedicated JSON RQ queue carries website import identifiers. The website worker
+checks public network destinations, follows same-origin links and sitemap indexes,
+and stores page provenance. Its bounded attempts publish snapshots atomically.
+The [website ingestion guide](website-ingestion.md) describes scope, limits and recrawls.
+
 ### Compose boundaries and persistence
 
 [compose.yaml](../compose.yaml) starts `secret-init`, PostgreSQL, Redis,
-`migrate`, API, worker and web services. PostgreSQL and Redis use the internal
+`migrate`, API, document worker, website worker and web services. PostgreSQL and Redis use the internal
 backend network with no published ports. Web/API publish only loopback ports
 `3000` and `8000`; the worker has no published port. The API joins both networks
-so the web server can reach it. The worker stays on the private backend network.
+so the web server can reach it. The document worker stays on the private backend
+network. The website worker also joins the dedicated `website-egress` network.
 
 The one-shot secret initializer has no network and generates persistent random
 credentials inside three private named volumes: `postgres-secrets`,
@@ -172,10 +180,8 @@ reuse the application's role checks and approval path.
 
 ### Knowledge ingestion and retrieval
 
-Uploads and bounded website crawls will produce durable jobs. Crawlers must
-validate the actual connection destination and every redirect, enforce public
-network boundaries and stop at documented page/byte/time limits. Parsing and
-indexing failures must have visible states and safe retries.
+Document uploads and bounded website crawls produce durable jobs. Future
+indexing must preserve their access controls, provenance and recovery behavior.
 
 Each active document version will own its chunks, embedding-model metadata and
 stable citation anchors. Keyword/vector queries and reranking must all filter
