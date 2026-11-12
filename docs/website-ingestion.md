@@ -14,7 +14,7 @@ normalized URL and sitemap setting reuse the existing record within a team.
 
 The crawler checks every resolved address and every redirect before connecting.
 It connects directly to a validated numeric address and checks HTTPS certificates
-against the original hostname. Private, loopback, link-local, metadata and
+against the original hostname. HTTPS requires TLS 1.2 or later. Private, loopback, link-local, metadata and
 ambiguous address forms are blocked. It sends no browser cookies or account
 credentials. The document worker stays on its internal network. The website
 worker has a dedicated egress network for crawl requests.

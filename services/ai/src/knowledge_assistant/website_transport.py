@@ -163,7 +163,10 @@ def fetch_pinned(
             raw.settimeout(remaining(deadline))
             raw.connect(endpoint)
             if url.scheme == "https":
-                context = ssl.create_default_context()
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                context.minimum_version = ssl.TLSVersion.TLSv1_2
+                context.verify_flags |= ssl.VERIFY_X509_STRICT | ssl.VERIFY_X509_PARTIAL_CHAIN
+                context.load_default_certs(ssl.Purpose.SERVER_AUTH)
                 raw.settimeout(remaining(deadline))
                 with context.wrap_socket(raw, server_hostname=url.host) as secured:
                     return _exchange(secured, url, deadline, max_bytes)

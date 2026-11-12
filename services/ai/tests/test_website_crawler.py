@@ -314,13 +314,23 @@ def test_native_transport_pins_socket_and_preserves_tls_hostname(
     names = []
 
     class Context:
+        verify_flags = 0
+
+        def __init__(self, protocol):
+            assert protocol == wire.ssl.PROTOCOL_TLS_CLIENT
+
+        def load_default_certs(self, purpose):
+            assert purpose == wire.ssl.Purpose.SERVER_AUTH
+
         def wrap_socket(self, raw, *, server_hostname):
             assert raw is sock
+            assert self.minimum_version == wire.ssl.TLSVersion.TLSv1_2
+            assert self.verify_flags & wire.ssl.VERIFY_X509_STRICT
             names.append(server_hostname)
             return raw
 
     monkeypatch.setattr(wire.socket, "socket", lambda *_: sock)
-    monkeypatch.setattr(wire.ssl, "create_default_context", Context)
+    monkeypatch.setattr(wire.ssl, "SSLContext", Context)
     url = WebsiteURL(ORIGIN + "/manual", "https", HOST, 443, "/manual")
     result = wire.fetch_pinned(url, ipaddress.ip_address(PUBLIC), monotonic() + 1, 20)
     assert sock.endpoint == (PUBLIC, 443)
