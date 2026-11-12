@@ -15,6 +15,7 @@ from knowledge_assistant.config import Settings
 from knowledge_assistant.document_routes import router as documents_router
 from knowledge_assistant.readiness import check_dependencies
 from knowledge_assistant.team_routes import router as team_router
+from knowledge_assistant.website_routes import router as websites_router
 from knowledge_assistant.workspace_middleware import WorkspaceRequestMiddleware
 from knowledge_assistant.workspace_store import WorkspaceStore
 
@@ -27,6 +28,7 @@ class Capabilities(BaseModel):
     health: bool = True
     authentication: bool = True
     documents: bool = True
+    websites: bool = True
     ingestion: bool = False
     retrieval: bool = False
     chat: bool = False
@@ -67,6 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth_router)
     application.include_router(team_router)
     application.include_router(documents_router)
+    application.include_router(websites_router)
 
     @application.exception_handler(RequestValidationError)
     async def invalid_request(_: Request, __: RequestValidationError) -> JSONResponse:

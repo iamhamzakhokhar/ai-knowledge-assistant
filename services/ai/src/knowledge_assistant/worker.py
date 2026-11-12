@@ -185,7 +185,9 @@ def _remove_worker_pointer(path: Path, identity: WorkerIdentity) -> None:
             path.unlink()
 
 
-def check_worker_health(settings: Settings, *, pointer_path: Path | None = None) -> bool:
+def check_worker_health(
+    settings: Settings, *, pointer_path: Path | None = None, queue_name: str = QUEUE_NAME
+) -> bool:
     """Require a live local process and a fresh named RQ worker, including while busy."""
     client: Redis | None = None
     try:
@@ -200,7 +202,7 @@ def check_worker_health(settings: Settings, *, pointer_path: Path | None = None)
             worker is None
             or worker.name != identity.name
             or worker.hostname != identity.hostname
-            or set(worker.queue_names()) != {QUEUE_NAME}
+            or set(worker.queue_names()) != {queue_name}
             or worker.get_state() not in {"started", "idle", "busy"}
             or worker.pid != identity.pid
             or worker.last_heartbeat is None
@@ -224,8 +226,13 @@ def check_worker_health(settings: Settings, *, pointer_path: Path | None = None)
                 client.close()
 
 
-def main(argv: Sequence[str] | None = None, *, pointer_path: Path | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the KnowledgeDesk infrastructure worker")
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    pointer_path: Path | None = None,
+    queue_name: str = QUEUE_NAME,
+) -> int:
+    parser = argparse.ArgumentParser(description="Run a KnowledgeDesk worker")
     parser.add_argument("--healthcheck", action="store_true", help="check this named worker")
     args = parser.parse_args(argv)
     client: Redis | None = None
@@ -233,7 +240,11 @@ def main(argv: Sequence[str] | None = None, *, pointer_path: Path | None = None)
     pointer = pointer_path or WORKER_POINTER_PATH
     try:
         if args.healthcheck:
-            return 0 if check_worker_health(Settings(), pointer_path=pointer) else 1
+            return (
+                0
+                if check_worker_health(Settings(), pointer_path=pointer, queue_name=queue_name)
+                else 1
+            )
         # Clear the old identity before any connection can block. A replacement
         # process may reuse PID 1, but its fresh UUID has no old Redis history.
         pointer.unlink(missing_ok=True)
@@ -241,7 +252,7 @@ def main(argv: Sequence[str] | None = None, *, pointer_path: Path | None = None)
         _write_worker_pointer(pointer, identity)
         settings = Settings()
         client = create_redis(settings)
-        queue = Queue(QUEUE_NAME, connection=client, serializer=JSONSerializer)
+        queue = Queue(queue_name, connection=client, serializer=JSONSerializer)
         worker = Worker(
             [queue],
             connection=client,
