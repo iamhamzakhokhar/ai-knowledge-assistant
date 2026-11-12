@@ -277,6 +277,107 @@
   color: #923332;
 }
 
+.document-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.documents-panel > .workspace-error {
+  color: #923332;
+}
+.document-upload {
+  margin-block: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.document-upload input::file-selector-button {
+  margin-right: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--pale);
+  color: var(--ink);
+}
+.document-notice {
+  margin: 0;
+  color: var(--teal-dark);
+  font-size: 13px;
+}
+.document-row-description {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 9px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.document-row-description strong,
+.document-row-description > p {
+  width: 100%;
+  margin: 0;
+}
+.document-row-description strong {
+  color: var(--ink);
+}
+.document-status {
+  border-radius: 20px;
+  padding: 4px 8px;
+  background: #e9f3fa;
+  color: #204e69;
+  font-weight: 600;
+}
+.document-status-completed {
+  background: var(--pale);
+  color: var(--teal-dark);
+}
+.document-status-failed {
+  background: #fbeded;
+  color: #923332;
+}
+.document-retry {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+}
+.document-preview {
+  min-width: 0;
+  margin-top: 16px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.document-preview h4 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.document-preview p {
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.document-preview .workspace-error {
+  color: #923332;
+}
+.document-preview-section {
+  margin-top: 14px;
+}
+.document-preview-text {
+  margin: 0;
+  padding: 14px;
+  border-radius: 6px;
+  background: var(--pale);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 900px) {
   .workspace-teams {
     margin-top: 12px;

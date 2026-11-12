@@ -18,10 +18,11 @@
 - The current setup includes a Next.js site and protected dashboard, a FastAPI
   liveness/readiness/status service, a disconnected Web Component preview, and
   local Compose infrastructure: PostgreSQL/pgvector, migrations, authenticated
-  Redis, fictional seeds and a JSON RQ infrastructure probe.
+  Redis, fictional seeds and a JSON RQ worker for documents and an internal probe.
 - Server-verified sessions and current memberships authorize team requests.
   Database RLS and transaction-local tenant context protect the initial resource
-  tables. Ingestion, retrieval and AI chat remain planned. Never accept an
+  tables, document records and original bytes. Website ingestion, retrieval and
+  AI chat remain planned. Never accept an
   unverified tenant ID as authorization or expose the internal probe publicly.
 - Keep implemented behavior distinct from planned behavior. Do not fabricate
   model replies, connected workflows, customers, revenue, traffic, coverage,

@@ -2,9 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Brand } from "@/components/brand";
+import { DocumentsPanel } from "@/components/documents-panel";
 import { Icon } from "@/components/icons";
 import { InviteForm, MembershipActions, SignOutButton, TeamForm } from "@/components/team-forms";
-import { parseRoster, parseSession, roleName, type Team, teamUrl } from "@/lib/workspace";
+import {
+  parseDocuments,
+  parseRoster,
+  parseSession,
+  roleName,
+  type Team,
+  teamUrl,
+} from "@/lib/workspace";
 import { requestInternalApi, sessionCookieHeader } from "@/lib/workspace-server";
 
 export const metadata: Metadata = { title: "Workspace overview", robots: { index: false } };
@@ -88,10 +96,13 @@ export default async function DashboardPage({
   const requestedTeam = (await searchParams).team;
   const selected =
     requestedTeam === undefined ? teams[0] : teams.find((team) => team.id === requestedTeam);
-  const roster = selected
-    ? await readWorkspace(`/api/v1/teams/${selected.id}/members`, cookie, parseRoster)
-    : null;
-  if (roster?.status === 401) redirect("/login");
+  const [roster, documents] = selected
+    ? await Promise.all([
+        readWorkspace(`/api/v1/teams/${selected.id}/members`, cookie, parseRoster),
+        readWorkspace(`/api/v1/teams/${selected.id}/documents`, cookie, parseDocuments),
+      ])
+    : [null, null];
+  if (roster?.status === 401 || documents?.status === 401) redirect("/login");
 
   return (
     <div className="dashboard-layout workspace-layout">
@@ -150,6 +161,11 @@ export default async function DashboardPage({
                 <h2 id="selected-team-heading">{selected.name}</h2>
                 <span className="workspace-role">{roleName[selected.role]}</span>
               </div>
+              <DocumentsPanel
+                teamId={selected.id}
+                canManage={selected.role !== "member"}
+                initialDocuments={documents?.data?.documents ?? null}
+              />
               {selected.role !== "member" && (
                 <InviteForm teamId={selected.id} canInviteAdmins={selected.role === "owner"} />
               )}

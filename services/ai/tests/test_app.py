@@ -40,6 +40,7 @@ def test_status_reports_only_implemented_capabilities(client: TestClient) -> Non
         "capabilities": {
             "health": True,
             "authentication": True,
+            "documents": True,
             "ingestion": False,
             "retrieval": False,
             "chat": False,

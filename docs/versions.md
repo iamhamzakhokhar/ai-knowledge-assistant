@@ -37,22 +37,28 @@ components have not been added. The type declarations are pinned in the manifest
 
 ## Python service and development tools
 
-| Dependency        | Pinned version | Published release metadata                                         |
-| ----------------- | -------------- | ------------------------------------------------------------------ |
-| FastAPI           | 0.162.2        | [PyPI release](https://pypi.org/project/fastapi/0.162.2/)          |
-| Pydantic          | 2.14.3         | [PyPI release](https://pypi.org/project/pydantic/2.14.3/)          |
-| pydantic-settings | 2.16.2         | [PyPI release](https://pypi.org/project/pydantic-settings/2.16.2/) |
-| Uvicorn           | 0.54.0         | [PyPI release](https://pypi.org/project/uvicorn/0.54.0/)           |
-| httpx2            | 2.16.0         | [PyPI release](https://pypi.org/project/httpx2/2.16.0/)            |
-| pytest            | 9.2.0          | [PyPI release](https://pypi.org/project/pytest/9.2.0/)             |
-| pytest-cov        | 7.1.0          | [PyPI release](https://pypi.org/project/pytest-cov/7.1.0/)         |
-| Ruff              | 0.17.4         | [PyPI release](https://pypi.org/project/ruff/0.17.4/)              |
-| Hatchling         | 1.33.0         | [PyPI release](https://pypi.org/project/hatchling/1.33.0/)         |
+| Dependency        | Pinned version | Published release metadata                                          |
+| ----------------- | -------------- | ------------------------------------------------------------------- |
+| FastAPI           | 0.162.2        | [PyPI release](https://pypi.org/project/fastapi/0.162.2/)           |
+| pypdf             | 7.0.1          | [Release notes](https://github.com/py-pdf/pypdf/releases/tag/7.0.1) |
+| Pydantic          | 2.14.3         | [PyPI release](https://pypi.org/project/pydantic/2.14.3/)           |
+| pydantic-settings | 2.16.2         | [PyPI release](https://pypi.org/project/pydantic-settings/2.16.2/)  |
+| Uvicorn           | 0.54.0         | [PyPI release](https://pypi.org/project/uvicorn/0.54.0/)            |
+| httpx2            | 2.16.0         | [PyPI release](https://pypi.org/project/httpx2/2.16.0/)             |
+| pytest            | 9.2.0          | [PyPI release](https://pypi.org/project/pytest/9.2.0/)              |
+| pytest-cov        | 7.1.0          | [PyPI release](https://pypi.org/project/pytest-cov/7.1.0/)          |
+| Ruff              | 0.17.4         | [PyPI release](https://pypi.org/project/ruff/0.17.4/)               |
+| Hatchling         | 1.33.0         | [PyPI release](https://pypi.org/project/hatchling/1.33.0/)          |
 
 FastAPI, Pydantic, settings and Uvicorn provide the HTTP service. The HTTP client
 and pytest tools support tests; Ruff checks/formats Python. Hatchling builds the
 service package, including its Alembic files. Version selection is separate from
 measured compatibility: recorded check results establish which flows have passed.
+
+pypdf 7.0.1 includes the fix for [GHSA-fhff-j4m8-439h](https://github.com/py-pdf/pypdf/security/advisories/GHSA-fhff-j4m8-439h).
+The worker uses the bounded parser configuration described in
+[document ingestion](document-ingestion.md). DOCX and Markdown parsing use
+the Python standard library.
 
 ## Local database and queue infrastructure
 

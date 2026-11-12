@@ -14,12 +14,13 @@ The application includes a responsive marketing page, an authenticated team
 dashboard, a FastAPI service, and a disconnected embeddable widget preview.
 It also includes a Docker Compose environment with PostgreSQL/pgvector, Redis,
 Alembic migrations, tenant-scoped tables, fictional seed data, and an RQ worker
-that executes an internal infrastructure probe.
+that extracts text from uploaded documents.
 
 Users can create an account, create a team, or join by invitation. Every team
-request checks the current membership and role on the server. Knowledge
-ingestion, retrieval, model-generated chat, working citations, agent actions,
-analytics, billing and MCP are **not implemented yet**. The marketing answer
+request checks the current membership and role on the server. Teams can upload
+PDF, DOCX, and Markdown files and preview the extracted text. Website ingestion,
+retrieval, model-generated chat, citations, agent actions, analytics, billing
+and MCP are **not implemented yet**. The marketing answer
 illustration uses fictional content. No model or identity provider key is needed
 for local development.
 
@@ -45,8 +46,9 @@ for implementation progress.
   keyboard controls and a clear disconnected state.
 - PostgreSQL tables with forced row-level security, owner-only migrations,
   transaction-local tenant context and idempotent fictional seeds.
-- Authenticated Redis and a JSON RQ probe that persists its result in a
-  tenant-scoped job record. There is no public enqueue endpoint.
+- [Private document ingestion](docs/document-ingestion.md) with a JSON RQ worker,
+  status tracking, retries, and text previews. Only team owners and admins can
+  upload and retry.
 - Compose health checks, persistent volumes, separated local credentials,
   and an opt-in integration/recovery test workflow.
 
@@ -169,8 +171,9 @@ its process environment and does not automatically load `.env` files. Compose
 provides its service configuration and secret-file paths directly.
 
 - `APP_ENV` selects `development`, `test` or `production`.
-- `CORS_ORIGINS` lists exact browser origins. Session and team mutations also
-  require a matching Origin and JSON, independently of the session check.
+- `CORS_ORIGINS` lists exact browser origins. Mutations require a matching
+  Origin, independently of the session check. File uploads use binary bodies;
+  other session and team mutations use JSON.
 - `API_INTERNAL_URL` is the server-only FastAPI origin used by Next.js. Compose
   sets it to `http://api:8000`. The browser uses same-origin application routes.
 - `NEXT_PUBLIC_API_URL` is reserved public browser configuration. Never put a

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from knowledge_assistant import __version__
 from knowledge_assistant.auth_routes import router as auth_router
 from knowledge_assistant.config import Settings
+from knowledge_assistant.document_routes import router as documents_router
 from knowledge_assistant.readiness import check_dependencies
 from knowledge_assistant.team_routes import router as team_router
 from knowledge_assistant.workspace_middleware import WorkspaceRequestMiddleware
@@ -25,6 +26,7 @@ class HealthResponse(BaseModel):
 class Capabilities(BaseModel):
     health: bool = True
     authentication: bool = True
+    documents: bool = True
     ingestion: bool = False
     retrieval: bool = False
     chat: bool = False
@@ -64,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.add_middleware(WorkspaceRequestMiddleware, allowed_origins=config.allowed_origins)
     application.include_router(auth_router)
     application.include_router(team_router)
+    application.include_router(documents_router)
 
     @application.exception_handler(RequestValidationError)
     async def invalid_request(_: Request, __: RequestValidationError) -> JSONResponse:

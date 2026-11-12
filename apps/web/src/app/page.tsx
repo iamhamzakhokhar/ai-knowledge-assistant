@@ -4,12 +4,19 @@ import { Icon, type IconName } from "@/components/icons";
 
 const repository = "https://github.com/iamhamzakhokhar/ai-knowledge-assistant";
 
-const features: { icon: IconName; eyebrow: string; title: string; text: string }[] = [
+const features: {
+  icon: IconName;
+  eyebrow: string;
+  title: string;
+  text: string;
+  availability?: string;
+}[] = [
   {
     icon: "layers",
     eyebrow: "01 / CONNECT",
     title: "One place for what your team knows.",
-    text: "The roadmap brings documents and website content into a searchable, team-specific knowledge base.",
+    text: "Upload PDFs, Word files, and Markdown to your team workspace and preview the extracted text.",
+    availability: "Document uploads available",
   },
   {
     icon: "link",
@@ -188,7 +195,9 @@ export default function HomePage() {
                 <span className="feature-eyebrow">{feature.eyebrow}</span>
                 <h3>{feature.title}</h3>
                 <p>{feature.text}</p>
-                <span className="planned-label">Planned capability</span>
+                <span className="planned-label">
+                  {feature.availability ?? "Planned capability"}
+                </span>
               </article>
             ))}
           </div>
@@ -204,8 +213,8 @@ export default function HomePage() {
                 At every step.
               </h2>
               <p>
-                The intended flow is easy to follow, inspect, and explain. This first milestone
-                establishes the foundation.
+                Document uploads are available in team workspaces. Website sources, cited answers,
+                and approved actions are on the roadmap.
               </p>
               <Link href="/project#roadmap" className="text-link">
                 See the project roadmap <Icon name="arrow" />
@@ -250,8 +259,8 @@ export default function HomePage() {
           </a>
         </section>
         <p id="preview-note" className="preview-disclaimer page-width">
-          The answer preview uses fictional sample content. Working chat, knowledge ingestion,
-          platform installs, and agent actions remain on the roadmap.
+          The answer preview uses fictional sample content. Working chat, website sources, platform
+          installs, and agent actions remain on the roadmap.
         </p>
       </main>
 
