@@ -121,6 +121,7 @@ services:
   worker:
     <<: *ai-image
     command: ["python", "-m", "knowledge_assistant.worker"]
+    mem_limit: 512m
     environment: *app-environment
     depends_on:
       migrate:
@@ -129,7 +130,7 @@ services:
         condition: service_healthy
     volumes:
       - app-secrets:/run/app-secrets:ro
-    networks: [backend, frontend]
+    networks: [backend]
     healthcheck:
       test: ["CMD", "python", "-m", "knowledge_assistant.worker", "--healthcheck"]
       interval: 10s

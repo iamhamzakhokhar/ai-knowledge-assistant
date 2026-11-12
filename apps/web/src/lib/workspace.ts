@@ -4,6 +4,18 @@ export type User = { id: string; email: string };
 export type Member = User & { role: Role };
 export type Session = { user: User; teams: Team[] };
 export type Invite = { email: string; role: "admin" | "member"; token: string; expires_at: string };
+export type DocumentStatus = "queued" | "processing" | "completed" | "failed";
+export type DocumentSummary = {
+  id: string;
+  name: string;
+  format: "pdf" | "docx" | "markdown";
+  status: DocumentStatus;
+  attempt: number;
+  error: string | null;
+  updated_at: string;
+};
+export type DocumentSection = { text: string; page: number | null; heading: string | null };
+export type DocumentDetail = DocumentSummary & { sections: DocumentSection[] };
 export type ResponseShape =
   | "session"
   | "teams"
@@ -11,9 +23,13 @@ export type ResponseShape =
   | "members"
   | "member"
   | "invite"
+  | "documents"
+  | "document"
+  | "documentDetail"
   | "empty";
 
 export const roleName: Record<Role, string> = { owner: "Owner", admin: "Admin", member: "Member" };
+export const documentUploadLimit = 5 * 1024 * 1024;
 
 export function isId(value: unknown): value is string {
   return (
@@ -83,6 +99,37 @@ export function parseRoster(value: unknown): { members: Member[] } | null {
   return members ? { members } : null;
 }
 
+function parseDocument(value: unknown): DocumentSummary | null {
+  if (!isRecord(value) || !isId(value.id) || typeof value.name !== "string") return null;
+  const { id, name, format, status, attempt, error, updated_at } = value;
+  if (format !== "pdf" && format !== "docx" && format !== "markdown") return null;
+  if (
+    status !== "queued" &&
+    status !== "processing" &&
+    status !== "completed" &&
+    status !== "failed"
+  )
+    return null;
+  if (typeof attempt !== "number" || !Number.isSafeInteger(attempt) || attempt < 0) return null;
+  if ((error !== null && typeof error !== "string") || typeof updated_at !== "string") return null;
+  return { id, name, format, status, attempt, error, updated_at };
+}
+
+function parseDocumentSection(value: unknown): DocumentSection | null {
+  if (!isRecord(value)) return null;
+  const { text, page, heading } = value;
+  if (typeof text !== "string" || (heading !== null && typeof heading !== "string")) return null;
+  if (page !== null && (typeof page !== "number" || !Number.isSafeInteger(page) || page < 1))
+    return null;
+  return { text, page, heading };
+}
+
+export function parseDocuments(value: unknown): { documents: DocumentSummary[] } | null {
+  if (!isRecord(value)) return null;
+  const documents = parseList(value.documents, parseDocument);
+  return documents ? { documents } : null;
+}
+
 export function parseWorkspaceResponse(shape: Exclude<ResponseShape, "empty">, value: unknown) {
   switch (shape) {
     case "session":
@@ -99,6 +146,15 @@ export function parseWorkspaceResponse(shape: Exclude<ResponseShape, "empty">, v
       return parseRoster(value);
     case "invite":
       return parseInvite(value);
+    case "documents":
+      return parseDocuments(value);
+    case "document":
+      return parseDocument(value);
+    case "documentDetail": {
+      const document = parseDocument(value);
+      const sections = isRecord(value) ? parseList(value.sections, parseDocumentSection) : null;
+      return document && sections ? { ...document, sections } : null;
+    }
   }
 }
 

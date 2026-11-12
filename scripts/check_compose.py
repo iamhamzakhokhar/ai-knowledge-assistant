@@ -24,6 +24,9 @@ def main() -> None:
     config = json.loads(result.stdout)
     services = config["services"]
     assert config["networks"]["backend"]["internal"] is True
+    assert set(services["worker"]["networks"]) == {"backend"}, (
+        "Document extraction must stay on the private backend network"
+    )
     for name in ("postgres", "redis", "worker", "migrate", "secret-init"):
         assert not services[name].get("ports"), f"{name} must not publish a host port"
     for name in ("api", "worker"):

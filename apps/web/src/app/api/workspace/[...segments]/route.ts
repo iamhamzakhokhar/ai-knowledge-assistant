@@ -1,10 +1,15 @@
-import { isId, parseWorkspaceResponse, type ResponseShape } from "@/lib/workspace";
+import {
+  documentUploadLimit,
+  isId,
+  parseWorkspaceResponse,
+  type ResponseShape,
+} from "@/lib/workspace";
 import { requestInternalApi, sessionCookieHeader, sessionCookieName } from "@/lib/workspace-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const maxRequestBytes = 16 * 1024;
+const maxJsonBytes = 16 * 1024;
 const staticRoutes = new Map<string, ResponseShape>([
   ["POST auth/signup", "session"],
   ["POST auth/login", "session"],
@@ -22,7 +27,7 @@ const errorMessages = new Map<number, string>([
   [404, "The requested workspace resource is unavailable."],
   [409, "That change conflicts with the current workspace state."],
   [413, "The request is too large."],
-  [415, "Send this request as JSON."],
+  [415, "The request uses an unsupported format."],
   [422, "Check the details and try again."],
   [429, "Too many attempts. Wait a moment and try again."],
   [503, "The workspace service is temporarily unavailable. Try again shortly."],
@@ -32,15 +37,27 @@ function operation(method: string, segments: string[]): ResponseShape | undefine
   if (segments.some((segment) => !/^[a-z0-9-]+$/i.test(segment))) return undefined;
   const fixed = staticRoutes.get(`${method} ${segments.join("/")}`);
   if (fixed) return fixed;
-  const [resource, team, collection, user] = segments;
+  const [resource, team, collection, entity, action] = segments;
   if (resource !== "teams" || !isId(team)) return undefined;
   if (segments.length === 3) {
     if (collection === "members" && method === "GET") return "members";
     if (collection === "invites" && method === "POST") return "invite";
+    if (collection === "documents" && method === "GET") return "documents";
+    if (collection === "documents" && method === "POST") return "document";
   }
-  if (segments.length === 4 && collection === "members" && isId(user)) {
-    if (method === "PATCH") return "member";
-    if (method === "DELETE") return "empty";
+  if (segments.length === 4 && isId(entity)) {
+    if (collection === "members" && method === "PATCH") return "member";
+    if (collection === "members" && method === "DELETE") return "empty";
+    if (collection === "documents" && method === "GET") return "documentDetail";
+  }
+  if (
+    segments.length === 5 &&
+    collection === "documents" &&
+    isId(entity) &&
+    action === "retry" &&
+    method === "POST"
+  ) {
+    return "document";
   }
   return undefined;
 }
@@ -54,26 +71,33 @@ function failure(status: number, headers = uncachedHeaders()): Response {
   return Response.json({ error: errorMessages.get(knownStatus) }, { status: knownStatus, headers });
 }
 
-async function readBody(request: Request): Promise<string | null> {
+async function readBody(request: Request, limit: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (Number(request.headers.get("content-length")) > limit) return null;
   const reader = request.body?.getReader();
-  if (!reader) return "";
-  const decoder = new TextDecoder("utf-8", { fatal: true });
+  if (!reader) return new Uint8Array(0);
+  const chunks: Uint8Array[] = [];
   let bytes = 0;
-  let body = "";
   try {
     while (true) {
       const chunk = await reader.read();
-      if (chunk.done) return body + decoder.decode();
+      if (chunk.done) break;
       bytes += chunk.value.byteLength;
-      if (bytes > maxRequestBytes) {
+      if (bytes > limit) {
         await reader.cancel();
         return null;
       }
-      body += decoder.decode(chunk.value, { stream: true });
+      chunks.push(chunk.value);
     }
   } finally {
     reader.releaseLock();
   }
+  const body = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 async function handle(
@@ -89,16 +113,24 @@ async function handle(
   const cookie = await sessionCookieHeader();
   if (origin !== null) outgoing.set("Origin", origin);
   if (cookie !== null) outgoing.set("Cookie", cookie);
-  let body: string | undefined;
+  let body: BodyInit | undefined;
   if (request.method !== "GET") {
     if (origin === null) return failure(403);
     const contentType = request.headers.get("content-type") ?? "";
-    if (contentType.split(";")[0].trim().toLowerCase() !== "application/json") return failure(415);
+    const uploading =
+      request.method === "POST" && segments.length === 3 && segments[2] === "documents";
+    const expected = uploading ? "application/octet-stream" : "application/json";
+    if (contentType.split(";")[0].trim().toLowerCase() !== expected) return failure(415);
     outgoing.set("Content-Type", contentType);
+    if (uploading) {
+      const name = request.headers.get("x-document-name");
+      if (!name || name.length > 765) return failure(422);
+      outgoing.set("X-Document-Name", name);
+    }
     try {
-      const contents = await readBody(request);
+      const contents = await readBody(request, uploading ? documentUploadLimit : maxJsonBytes);
       if (contents === null) return failure(413);
-      body = contents;
+      body = uploading ? contents : new TextDecoder("utf-8", { fatal: true }).decode(contents);
     } catch {
       return failure(400);
     }

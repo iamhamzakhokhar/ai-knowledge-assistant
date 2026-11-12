@@ -26,7 +26,7 @@ export async function sessionCookieHeader(): Promise<string | null> {
 
 export function requestInternalApi(
   path: string,
-  options: { method?: string; headers?: HeadersInit; body?: string } = {},
+  options: Pick<RequestInit, "method" | "headers" | "body"> = {},
 ): Promise<Response> {
   return fetch(`${internalApiOrigin()}${path}`, {
     ...options,
