@@ -1,0 +1,5 @@
+# Only the disposable CI stack loads this override.
+services:
+  website-worker:
+    networks: !override [backend]
+    extra_hosts: ["crawl-fixture.invalid=127.0.0.1", "crawl-fixture.invalid.=127.0.0.1"]

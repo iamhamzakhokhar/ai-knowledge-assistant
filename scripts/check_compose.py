@@ -27,9 +27,15 @@ def main() -> None:
     assert set(services["worker"]["networks"]) == {"backend"}, (
         "Document extraction must stay on the private backend network"
     )
-    for name in ("postgres", "redis", "worker", "migrate", "secret-init"):
+    assert set(services["website-worker"]["networks"]) == {"backend", "website-egress"}
+    assert all(
+        "website-egress" not in service.get("networks", {})
+        for name, service in services.items()
+        if name != "website-worker"
+    )
+    for name in ("postgres", "redis", "worker", "website-worker", "migrate", "secret-init"):
         assert not services[name].get("ports"), f"{name} must not publish a host port"
-    for name in ("api", "worker"):
+    for name in ("api", "worker", "website-worker"):
         assert services[name]["environment"]["DATABASE_USER"] == "aka_app"
         mounts = {volume["source"] for volume in services[name]["volumes"]}
         assert mounts == {"app-secrets"}, f"{name} must not receive owner/Redis-server secrets"

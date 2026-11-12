@@ -12,7 +12,18 @@ def main() -> None:
     project = os.environ.get("COMPOSE_PROJECT_NAME", "")
     if re.fullmatch(r"aka-ci-[a-z0-9-]+", project) is None:
         raise SystemExit("Use a disposable COMPOSE_PROJECT_NAME starting with aka-ci-")
-    compose = ["docker", "compose", "--project-name", project, "--profile", "test"]
+    compose = [
+        "docker",
+        "compose",
+        "-f",
+        "compose.yaml",
+        "-f",
+        "compose.ci.yaml",
+        "--project-name",
+        project,
+        "--profile",
+        "test",
+    ]
 
     def run(*arguments: str, **options: object) -> subprocess.CompletedProcess:
         return subprocess.run([*compose, *arguments], check=True, **options)
@@ -35,7 +46,7 @@ def main() -> None:
 
     check_compose()
     run("config", "--quiet")
-    run("up", "--build", "--wait", "--wait-timeout", "240", "web", "worker")
+    run("up", "--build", "--wait", "--wait-timeout", "240", "web", "worker", "website-worker")
     run("run", "--rm", "--no-deps", "seed")
     run("run", "--rm", "--build", "--no-deps", "integration-tests")
 
@@ -55,7 +66,7 @@ def main() -> None:
         marker + "c.set('aka:ci:persistence', 'survives-restart'); c.close()",
     )
     run("restart", "postgres", "redis")
-    run("up", "--wait", "--wait-timeout", "180", "web", "worker")
+    run("up", "--wait", "--wait-timeout", "180", "web", "worker", "website-worker")
     if count_sources() != expected:
         raise RuntimeError("PostgreSQL data did not survive restart")
     run(

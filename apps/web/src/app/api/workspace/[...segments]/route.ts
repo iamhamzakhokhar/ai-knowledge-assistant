@@ -44,20 +44,18 @@ function operation(method: string, segments: string[]): ResponseShape | undefine
     if (collection === "invites" && method === "POST") return "invite";
     if (collection === "documents" && method === "GET") return "documents";
     if (collection === "documents" && method === "POST") return "document";
+    if (collection === "websites" && method === "GET") return "websites";
+    if (collection === "websites" && method === "POST") return "website";
   }
   if (segments.length === 4 && isId(entity)) {
     if (collection === "members" && method === "PATCH") return "member";
     if (collection === "members" && method === "DELETE") return "empty";
     if (collection === "documents" && method === "GET") return "documentDetail";
+    if (collection === "websites" && method === "GET") return "websiteDetail";
   }
-  if (
-    segments.length === 5 &&
-    collection === "documents" &&
-    isId(entity) &&
-    action === "retry" &&
-    method === "POST"
-  ) {
-    return "document";
+  if (segments.length === 5 && isId(entity) && method === "POST") {
+    if (collection === "documents" && action === "retry") return "document";
+    if (collection === "websites" && action === "recrawl") return "website";
   }
   return undefined;
 }

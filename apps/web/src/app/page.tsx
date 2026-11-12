@@ -146,7 +146,7 @@ export default function HomePage() {
               </span>
               <div>
                 <strong>Knowledge, connected.</strong>
-                <span>Documents + websites, on the roadmap</span>
+                <span>Documents and website sources</span>
               </div>
             </div>
           </figure>
@@ -259,8 +259,8 @@ export default function HomePage() {
           </a>
         </section>
         <p id="preview-note" className="preview-disclaimer page-width">
-          The answer preview uses fictional sample content. Working chat, website sources, platform
-          installs, and agent actions remain on the roadmap.
+          The answer preview uses fictional sample content. Working chat, platform installs, and
+          agent actions remain on the roadmap.
         </p>
       </main>
 
