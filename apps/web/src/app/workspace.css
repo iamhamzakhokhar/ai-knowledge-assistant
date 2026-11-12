@@ -1,0 +1,314 @@
+/* biome-ignore-all lint/style/noDescendingSpecificity: Workspace component selectors have separate scopes. */
+
+.auth-layout {
+  min-height: 100vh;
+}
+.auth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 84px;
+  border-bottom: 1px solid var(--line);
+}
+.auth-header .text-link {
+  min-height: 44px;
+}
+.auth-main {
+  display: grid;
+  justify-items: center;
+  padding-block: clamp(32px, 7vw, 86px);
+}
+.auth-card {
+  width: min(100%, 460px);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+  padding: clamp(20px, 5vw, 36px);
+}
+.auth-card h1 {
+  margin: 0 0 10px;
+  font-size: clamp(29px, 5vw, 36px);
+  font-weight: 550;
+  line-height: 1.15;
+  letter-spacing: -1.2px;
+}
+.auth-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.auth-card .workspace-form {
+  margin-block: 24px 20px;
+}
+.auth-card .workspace-form .button {
+  width: 100%;
+}
+.auth-card .auth-alternate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.workspace-form {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  margin-top: 16px;
+}
+.workspace-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.workspace-field small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.workspace-field :is(input, select),
+.workspace-member-form select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #809184;
+  border-radius: 6px;
+  background: white;
+  color: var(--ink);
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+}
+.workspace-field input[readonly] {
+  background: var(--pale);
+  font-family: ui-monospace, monospace;
+}
+.workspace-error {
+  color: #923332;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.auth-card .workspace-error {
+  color: #923332;
+}
+.workspace-form button:disabled,
+.workspace-sign-out button:disabled,
+.workspace-member-actions button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+.workspace-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+}
+.workspace-layout .sidebar-label {
+  margin-top: 35px;
+  margin-left: 6px;
+  font-size: 10px;
+}
+.workspace-teams a {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 13px;
+}
+.workspace-teams a > span {
+  overflow-wrap: anywhere;
+}
+.workspace-no-teams {
+  margin: 8px 6px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.workspace-project-link {
+  margin: 24px 6px 0;
+}
+.workspace-topbar {
+  min-height: 70px;
+  height: auto;
+  padding-block: 12px;
+  gap: 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.workspace-account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.workspace-account > span {
+  overflow-wrap: anywhere;
+}
+.workspace-sign-out {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.workspace-sign-out > .workspace-error {
+  max-width: 215px;
+}
+.workspace-main h1 {
+  margin: 0 0 22px;
+  font-size: clamp(30px, 4vw, 40px);
+  font-weight: 550;
+  letter-spacing: -1.25px;
+  line-height: 1.15;
+}
+.workspace-team-forms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.workspace-panel {
+  min-width: 0;
+}
+.workspace-panel :is(h2, h3) {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+.workspace-panel > p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.workspace-panel > .text-link {
+  margin-top: 12px;
+}
+.workspace-team {
+  display: grid;
+  gap: 16px;
+}
+.workspace-team-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.workspace-team-heading h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 550;
+  letter-spacing: -0.45px;
+  overflow-wrap: anywhere;
+}
+.workspace-role {
+  display: inline-block;
+  color: var(--teal-dark);
+  background: var(--pale);
+  padding: 4px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.workspace-form-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 0.35fr);
+  gap: 12px;
+}
+.workspace-invite-result {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 14px;
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.workspace-invite-result p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.workspace-roster {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+}
+.workspace-member {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.workspace-member > div {
+  min-width: 0;
+}
+.workspace-member strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.workspace-member-actions,
+.workspace-member-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace-member-form select {
+  width: auto;
+}
+.workspace-member-actions .workspace-error {
+  flex-basis: 100%;
+}
+.workspace-remove {
+  color: #923332;
+}
+
+@media (max-width: 900px) {
+  .workspace-teams {
+    margin-top: 12px;
+  }
+  .workspace-project-link {
+    margin-top: 13px;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-header {
+    min-height: 72px;
+    gap: 8px;
+  }
+  .auth-header .text-link {
+    font-size: 12px;
+  }
+  .workspace-topbar > span {
+    display: none;
+  }
+  .workspace-account {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .workspace-account:has(.workspace-error) {
+    flex-wrap: wrap;
+  }
+  .workspace-team-forms,
+  .workspace-form-row {
+    grid-template-columns: 1fr;
+  }
+  .workspace-member-actions {
+    width: 100%;
+  }
+}

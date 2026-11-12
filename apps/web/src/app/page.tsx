@@ -37,7 +37,7 @@ export default function HomePage() {
             GitHub <Icon name="arrowUp" />
           </a>
         </nav>
-        <Link href="/dashboard" className="button button-small button-dark header-cta">
+        <Link href="/project" className="button button-small button-dark header-cta">
           Explore project <Icon name="arrow" />
         </Link>
       </header>
@@ -62,7 +62,7 @@ export default function HomePage() {
               documents, and actions that keep people in control.
             </p>
             <div className="hero-actions">
-              <Link href="/dashboard" className="button button-primary">
+              <Link href="/dashboard" prefetch={false} className="button button-primary">
                 Open dashboard <Icon name="arrow" />
               </Link>
               <a href={repository} className="button button-outline">
@@ -73,7 +73,7 @@ export default function HomePage() {
               <span className="tiny-check">
                 <Icon name="check" />
               </span>{" "}
-              MIT licensed <span className="dot-separator">·</span> Setup in progress{" "}
+              MIT licensed <span className="dot-separator">·</span> Team workspaces{" "}
               <span className="dot-separator">·</span> No API keys needed to explore
             </div>
           </div>
@@ -207,7 +207,7 @@ export default function HomePage() {
                 The intended flow is easy to follow, inspect, and explain. This first milestone
                 establishes the foundation.
               </p>
-              <Link href="/dashboard#roadmap" className="text-link">
+              <Link href="/project#roadmap" className="text-link">
                 See the project roadmap <Icon name="arrow" />
               </Link>
             </div>
@@ -251,8 +251,7 @@ export default function HomePage() {
         </section>
         <p id="preview-note" className="preview-disclaimer page-width">
           The answer preview uses fictional sample content. Working chat, knowledge ingestion,
-          platform installs, and agent actions are planned features; they are not available in this
-          setup milestone.
+          platform installs, and agent actions remain on the roadmap.
         </p>
       </main>
 

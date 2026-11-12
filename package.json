@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @aka/web dev",
-    "dev:api": "uv run --directory services/ai uvicorn knowledge_assistant.app:app --reload --port 8000",
+    "dev:api": "uv run --directory services/ai uvicorn knowledge_assistant.app:app --reload --port 8000 --no-proxy-headers",
     "build": "pnpm -r build",
     "lint": "biome check . && uv run --directory services/ai ruff check . ../../scripts && uv run --directory services/ai ruff format --check . ../../scripts",
     "format": "biome check --write . && uv run --directory services/ai ruff check --fix . ../../scripts && uv run --directory services/ai ruff format . ../../scripts",

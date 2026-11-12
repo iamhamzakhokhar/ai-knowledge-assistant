@@ -55,12 +55,14 @@ jobs:
           WEB_PORT: "43000"
           API_PORT: "48000"
         run: python scripts/compose_smoke.py
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Browser tests against the Compose stack
+        env:
+          BROWSER_BASE_URL: http://127.0.0.1:43000
+        run: pnpm test:browser
       - name: Stop disposable infrastructure
         if: always()
         env:
           COMPOSE_PROJECT_NAME: aka-ci-${{ github.run_id }}-${{ github.run_attempt }}
         run: docker compose --profile test down --volumes --remove-orphans
-      - name: Install browser
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Browser tests
-        run: pnpm test:browser
