@@ -1,8 +1,8 @@
 # Architecture
 
 KnowledgeDesk is a portfolio project by Hamza Zahid Khokhar. It implements local
-infrastructure, accounts and team authorization. Knowledge and AI workflows
-remain on the roadmap.
+infrastructure, accounts, team authorization and document extraction. Search
+and AI workflows remain on the roadmap.
 
 ## Implemented architecture
 
@@ -37,7 +37,7 @@ reports that the API process can respond. Readiness returns `200` after the
 application database connection executes `SELECT 1` and authenticated Redis
 responds to `PING`; failures return a generic `503` without connection details.
 Readiness does not assert worker execution or AI capabilities. The status endpoint
-continues to report ingestion, retrieval, chat, agents and MCP as unavailable.
+reports document extraction separately from retrieval, chat, agents and MCP.
 
 ### Storage and the internal tenant boundary
 
@@ -74,10 +74,18 @@ The optional seed command inserts two fictional teams and one example source per
 team through the application role. Repeated seeding preserves existing records.
 It does not parse documents, call a model or build a knowledge index.
 
-### Redis and the worker probe
+### Document extraction and the worker
 
-The private RQ queue is named `ingestion` in preparation for later work. Its only
-current task is an infrastructure probe. Internal `enqueue_probe` persists a
+Document uploads persist the original bytes and a queued attempt in PostgreSQL.
+Forced row-level security protects document and original records. The private
+JSON RQ job carries only identifiers and the attempt number. The worker claims
+that attempt, checks the uploader's live role, and publishes the complete text
+and metadata in one transaction. The job lease and attempt number let a team
+recover from an interruption without letting late workers publish stale text.
+See [document ingestion](document-ingestion.md) for limits and retry behavior.
+
+The private `ingestion` queue also serves an internal infrastructure probe.
+Internal `enqueue_probe` persists a
 `queued` job record before enqueueing a fixed dotted task with UUID string
 arguments and a deterministic job ID. Producer and worker use `JSONSerializer`;
 no pickle payload is needed for this flow.
@@ -86,7 +94,7 @@ The worker runs the task under its tenant transaction, moves the existing record
 through `running` to `completed`, and stores a small result. Duplicate completed
 runs return the same result; queue/execution failures have safe recorded failure
 states. Queue/result retention and execution time are bounded. There is no
-public enqueue route or model/document work. Possession of the private service
+public probe enqueue route. Possession of the private service
 credential is a trusted infrastructure boundary, not an end-user permission.
 
 ### Compose boundaries and persistence
@@ -94,8 +102,8 @@ credential is a trusted infrastructure boundary, not an end-user permission.
 [compose.yaml](../compose.yaml) starts `secret-init`, PostgreSQL, Redis,
 `migrate`, API, worker and web services. PostgreSQL and Redis use the internal
 backend network with no published ports. Web/API publish only loopback ports
-`3000` and `8000`; the worker has no published port. The API and worker also join
-the frontend network for their application-service connectivity.
+`3000` and `8000`; the worker has no published port. The API joins both networks
+so the web server can reach it. The worker stays on the private backend network.
 
 The one-shot secret initializer has no network and generates persistent random
 credentials inside three private named volumes: `postgres-secrets`,
@@ -153,9 +161,9 @@ flowchart LR
 
 ### Identity and tenancy
 
-Extend the existing membership checks and database scope to documents, chunks,
-citations, actions, usage and analytics as those features are built. File keys,
-caches and background jobs need the same isolation rules.
+Extend the existing membership checks and database scope to chunks, citations,
+actions, usage and analytics as those features are built. File keys, caches
+and background jobs need the same isolation rules.
 
 A widget identifier is public configuration. Allowed-domain checks and CORS are
 abuse/browser-origin controls, not authentication. Widget sessions will be

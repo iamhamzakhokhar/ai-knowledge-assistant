@@ -58,13 +58,11 @@ subsequent requests, without requiring the user to sign in again. Removing a
 membership invalidates that recipient's outstanding invitations for the team.
 It does not remove the account's access to its other teams.
 
-The only queue task is still the internal infrastructure probe. No browser
-endpoint can enqueue it or pass a session into the worker. Before adding
-user-initiated jobs, persist their tenant and initiator on the server, load the
-record at execution, and recheck any permission the action still requires.
-Source files, citations, caches and analytics do not exist yet. Their future
-storage keys and queries must use the same authorized tenant scope; a public
-widget identifier must never confer dashboard or team membership.
+The infrastructure probe remains internal. Document extraction jobs persist the
+authorized tenant and initiator. The worker rechecks that initiator's current
+role without receiving a browser session. See [document ingestion](document-ingestion.md).
+Future citations, caches and analytics must use the same authorized tenant
+scope; a public widget identifier must never confer dashboard or team membership.
 
 ## Verify the boundary
 

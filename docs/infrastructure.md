@@ -47,8 +47,8 @@ docker compose down
 ## Connections and local credentials
 
 PostgreSQL and Redis have no published host ports and attach only to the
-internal backend network. API and worker join backend and frontend networks;
-web joins frontend. Only web and API publish host ports, both bound to
+internal backend network. API joins both networks; web joins frontend, and the
+worker stays on backend. Only web and API publish host ports, both bound to
 `127.0.0.1`. The worker has no published port.
 
 `secret-init` runs once per startup without network access. It generates missing
@@ -112,7 +112,9 @@ docker compose run --rm migrate python -m knowledge_assistant.migrate upgrade he
 ```
 
 Revision `0001` enables pgvector and creates `teams`, `knowledge_sources` and
-`job_runs`, their tenant policies and runtime grants. The runtime database helper
+`job_runs`, their tenant policies and runtime grants. Revision `0002` adds
+identity and membership; `0003` adds private document records and originals.
+The runtime database helper
 sets tenant context inside each transaction. A context UUID is trusted internal
 input, not proof of a user's team membership.
 
@@ -141,8 +143,8 @@ docker compose --profile tools run --rm seed
 Repeated runs preserve row counts and existing content. The records demonstrate
 storage and RLS; they do not ingest a file, generate an embedding or enable chat.
 
-The only current background task is an internal infrastructure probe on the
-`ingestion` queue. After seeding, enqueue it from the application container:
+The `ingestion` queue handles document extraction and an internal
+infrastructure probe. After seeding, enqueue the probe from the application container:
 
 ```sh
 docker compose exec -T api python -c "from knowledge_assistant.config import Settings; from knowledge_assistant.queueing import enqueue_probe; from knowledge_assistant.seed import DEMO_TEAM_ID; print(enqueue_probe(Settings(), DEMO_TEAM_ID))"
@@ -157,7 +159,8 @@ docker compose exec -T postgres psql -U aka_owner -d knowledge_assistant -c "SEL
 ```
 
 This command is local administration, not a public product API. There is no HTTP
-enqueue route, end-user authentication, document processing or model call.
+enqueue route for the probe or a model call. For document work, use the team
+dashboard and the [document ingestion guide](document-ingestion.md).
 
 ## Real integration and recovery checks
 
@@ -217,8 +220,8 @@ mkdir -p .local/backups
 docker compose exec -T postgres pg_dump -U aka_owner -d knowledge_assistant -Fc > .local/backups/dev.dump
 ```
 
-A database dump contains schema, records, grants, password hashes and session
-and invite digests. Keep it private. Docker data/secret volumes
+A database dump contains schema, records, grants, password hashes, session and
+invite digests, uploaded files and extracted text. Keep it private. Docker data/secret volumes
 are separate resources; retain their mapping for the current local stack.
 A successful dump alone is not a verified restore.
 
