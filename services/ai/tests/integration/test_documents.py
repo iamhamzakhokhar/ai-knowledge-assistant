@@ -372,20 +372,26 @@ def test_revoked_uploader_cannot_publish_text(
     assert uploaded.status_code == 201
     resource = f"{collection}/{uploaded.json()['id']}"
     extract = document_jobs.parse_document
+    removal_statuses = []
 
     def revoke_before_publish(*args, **kwargs):
-        removed = owner.delete(
-            f"{TEAMS}/{team_id}/members/{admin_id}", headers={"Origin": ORIGIN}, json={}
+        removed = owner.request(
+            "DELETE", f"{TEAMS}/{team_id}/members/{admin_id}", headers={"Origin": ORIGIN}, json={}
         )
-        assert removed.status_code == 204
+        removal_statuses.append(removed.status_code)
         return extract(*args, **kwargs)
 
     with monkeypatch.context() as patch:
         patch.setattr(document_jobs, "parse_document", revoke_before_publish)
         _deliver(document_settings, deliveries[0])
+    assert removal_statuses == [204]
     assert admin.get(resource).status_code == 404
     detail = owner.get(resource).json()
-    assert detail["status"] == "failed" and detail["sections"] == []
+    assert (detail["status"], detail["error"], detail["sections"]) == (
+        "failed",
+        "authorization_revoked",
+        [],
+    )
     assert _retry(owner, resource).status_code == 200
     _deliver(document_settings, deliveries[1])
     assert owner.get(resource).json()["status"] == "completed"
