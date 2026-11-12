@@ -1,10 +1,15 @@
 """Check browser mutation provenance and size before FastAPI parses the body."""
 
+import re
+
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from knowledge_assistant.document_parser import MAX_DOCUMENT_BYTES
+
 _MAX_BODY = 4096
+_DOCUMENT_COLLECTION = re.compile(r"/api/v1/teams/[^/]+/documents")
 
 
 class WorkspaceRequestMiddleware:
@@ -39,19 +44,26 @@ class WorkspaceRequestMiddleware:
                 scope, receive, send_private
             )
             return
-        if headers.get("content-type", "").partition(";")[0].strip().lower() != "application/json":
-            await JSONResponse({"detail": "Expected application/json"}, 415)(
+        document_upload = scope["method"] == "POST" and _DOCUMENT_COLLECTION.fullmatch(path)
+        media_type = "application/octet-stream" if document_upload else "application/json"
+        content_types = headers.getlist("content-type")
+        if (
+            len(content_types) != 1
+            or content_types[0].partition(";")[0].strip().lower() != media_type
+        ):
+            await JSONResponse({"detail": f"Expected {media_type}"}, 415)(
                 scope, receive, send_private
             )
             return
 
+        body_limit = MAX_DOCUMENT_BYTES if document_upload else _MAX_BODY
         body = bytearray()
         while True:
             message = await receive()
             if message["type"] == "http.disconnect":
                 return
             chunk = message.get("body", b"")
-            if len(body) + len(chunk) > _MAX_BODY:
+            if len(body) + len(chunk) > body_limit:
                 await JSONResponse({"detail": "Request is too large"}, 413)(
                     scope, receive, send_private
                 )
