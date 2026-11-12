@@ -16,7 +16,7 @@ docker compose ps
 ```
 
 The default stack starts the secret initializer, PostgreSQL, Redis, migrations,
-API, worker and web. Initialization and migration are one-shot services. Startup
+API, document worker, website worker and web. Initialization and migration are one-shot services. Startup
 waits for their successful completion and the running services' health checks.
 
 Open the web at [localhost:3000](http://localhost:3000) and API docs at
@@ -48,7 +48,8 @@ docker compose down
 
 PostgreSQL and Redis have no published host ports and attach only to the
 internal backend network. API joins both networks; web joins frontend, and the
-worker stays on backend. Only web and API publish host ports, both bound to
+document worker stays on backend. The website worker also joins `website-egress`.
+Only web and API publish host ports, both bound to
 `127.0.0.1`. The worker has no published port.
 
 `secret-init` runs once per startup without network access. It generates missing
@@ -113,7 +114,8 @@ docker compose run --rm migrate python -m knowledge_assistant.migrate upgrade he
 
 Revision `0001` enables pgvector and creates `teams`, `knowledge_sources` and
 `job_runs`, their tenant policies and runtime grants. Revision `0002` adds
-identity and membership; `0003` adds private document records and originals.
+identity and membership, `0003` adds private document records and originals,
+and `0004` adds website imports and crawl snapshots.
 The runtime database helper
 sets tenant context inside each transaction. A context UUID is trusted internal
 input, not proof of a user's team membership.
@@ -231,7 +233,7 @@ Stop the API and worker while checking a recovery copy. Create the named
 `aka_restore_check` database in this same Compose project's PostgreSQL service:
 
 ```sh
-docker compose stop api worker
+docker compose stop api worker website-worker
 docker compose exec -T postgres createdb -U aka_owner aka_restore_check
 docker compose exec -T postgres pg_restore -U aka_owner -d aka_restore_check --exit-on-error < .local/backups/dev.dump
 docker compose exec -T postgres psql -U aka_owner -d aka_restore_check -c "SELECT count(*) FROM knowledge_sources;"
@@ -242,7 +244,7 @@ recovery-check database `aka_restore_check`**, then resumes the application:
 
 ```sh
 docker compose exec -T postgres dropdb -U aka_owner aka_restore_check
-docker compose up -d --wait api worker web
+docker compose up -d --wait api worker website-worker web
 ```
 
 If a recovery-check database already exists, inspect it before choosing to remove
@@ -256,12 +258,12 @@ recreate it, and restore `.local/backups/dev.dump`. Use them only when replacing
 that local dataset is intended and the backup has been verified.
 
 ```sh
-docker compose stop api worker
+docker compose stop api worker website-worker
 docker compose exec -T postgres dropdb -U aka_owner --force knowledge_assistant
 docker compose exec -T postgres createdb -U aka_owner -O aka_owner knowledge_assistant
 docker compose exec -T postgres pg_restore -U aka_owner -d knowledge_assistant --exit-on-error < .local/backups/dev.dump
 docker compose run --rm migrate python -m knowledge_assistant.migrate upgrade head
-docker compose up -d --wait api worker web
+docker compose up -d --wait api worker website-worker web
 ```
 
 Keep the backup until the resumed application, readiness and expected records
