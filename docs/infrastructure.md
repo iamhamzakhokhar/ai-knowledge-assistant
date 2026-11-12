@@ -3,7 +3,8 @@
 Run the commands in this guide from the repository root. They address this
 repository's Compose project, named `hamza-knowledge-assistant` by default.
 [compose.yaml](../compose.yaml) is the source of truth for services and mounts.
-This is a local development setup; the public UI is still a project shell.
+This is a local development setup. Create an account at `/signup` to use the
+authenticated dashboard; the public project overview is at `/project`.
 
 ## Start, inspect and stop
 
@@ -95,6 +96,11 @@ The selected images are `pgvector/pgvector:0.8.7-pg18` and `redis:8.10.3`.
 PostgreSQL 18 persists under the volume mounted at `/var/lib/postgresql`.
 Redis persists under `/data`, with append-only storage and periodic snapshots
 configured. See [version sources](versions.md) for the Python database/queue pins.
+
+The Next.js container calls FastAPI through the private Docker hostname `api`.
+Browser requests use the web origin; Compose allows the configured `WEB_PORT`
+on `localhost` and `127.0.0.1`. Use one hostname consistently, since the session
+cookie is specific to the host. See [authentication and teams](authentication.md).
 
 The default `migrate` service runs `upgrade head`. For explicit commands, supply
 the complete Python command: this service has a normal image command, not a
@@ -211,7 +217,8 @@ mkdir -p .local/backups
 docker compose exec -T postgres pg_dump -U aka_owner -d knowledge_assistant -Fc > .local/backups/dev.dump
 ```
 
-A database dump contains schema, records and grants. Docker data/secret volumes
+A database dump contains schema, records, grants, password hashes and session
+and invite digests. Keep it private. Docker data/secret volumes
 are separate resources; retain their mapping for the current local stack.
 A successful dump alone is not a verified restore.
 

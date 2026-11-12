@@ -10,24 +10,24 @@ Built by Hamza Zahid Khokhar.
 
 ## Current status
 
-The setup code includes a responsive marketing page, a project dashboard shell,
-a FastAPI health/status service, and a disconnected embeddable widget preview.
+The application includes a responsive marketing page, an authenticated team
+dashboard, a FastAPI service, and a disconnected embeddable widget preview.
 It also includes a Docker Compose environment with PostgreSQL/pgvector, Redis,
 Alembic migrations, tenant-scoped tables, fictional seed data, and an RQ worker
 that executes an internal infrastructure probe.
 
-The dashboard is a public project overview. User authentication, team membership
-and roles, knowledge ingestion, retrieval, model-generated chat, working
-citations, agent actions, analytics, billing and MCP are **not implemented yet**.
-The database boundary accepts a trusted internal tenant ID; it does not
-authenticate users. The marketing answer illustration uses fictional content.
-No model API key is needed for the setup environment.
+Users can create an account, create a team, or join by invitation. Every team
+request checks the current membership and role on the server. Knowledge
+ingestion, retrieval, model-generated chat, working citations, agent actions,
+analytics, billing and MCP are **not implemented yet**. The marketing answer
+illustration uses fictional content. No model or identity provider key is needed
+for local development.
 
 **Live demo:** not deployed.
 
 ![KnowledgeDesk setup homepage](docs/images/homepage.png)
 
-[View the mobile workspace](docs/images/workspace-mobile.png).
+[View the original mobile project overview](docs/images/workspace-mobile.png).
 
 This is a portfolio project. It has no claimed customers, revenue or production
 traffic. Follow the [issues](https://github.com/iamhamzakhokhar/ai-knowledge-assistant/issues)
@@ -36,7 +36,10 @@ for implementation progress.
 
 ## What works now
 
-- Next.js marketing page at `/` and a responsive project overview at `/dashboard`.
+- Next.js marketing page at `/`, public project overview at `/project`, and
+  a protected workspace at `/dashboard`.
+- Account sign-up and sign-in, server-side sessions, invitation-based teams,
+  and owner/admin/member permissions. See the [authentication guide](docs/authentication.md).
 - FastAPI liveness, dependency readiness, capability status and OpenAPI docs.
 - A standalone TypeScript Web Component with Shadow DOM, branding settings,
   keyboard controls and a clear disconnected state.
@@ -78,9 +81,10 @@ and the tenant-scoped database boundary.
 
 ```mermaid
 flowchart LR
-    Visitor[Visitor] --> Web[Next.js project shell]
+    Visitor[Visitor] --> Web[Next.js site and protected dashboard]
     HostPage[Host test page] --> Widget[Disconnected Web Component]
     Client[Developer or HTTP client] --> API[FastAPI]
+    Web --> API
     API --> DB[(PostgreSQL and pgvector)]
     API --> Redis[(Authenticated Redis)]
     Probe[Internal probe command] --> Redis
@@ -109,7 +113,8 @@ API and worker health checks. Password values do not need to be copied to host
 files or exported into the shell.
 
 Open [the marketing page](http://localhost:3000),
-[the dashboard shell](http://localhost:3000/dashboard),
+[create a local account](http://localhost:3000/signup), or
+[sign in to your dashboard](http://localhost:3000/login). The API provides
 [API liveness](http://localhost:8000/health),
 [dependency readiness](http://localhost:8000/ready),
 [capability status](http://localhost:8000/api/v1/status) or
@@ -122,7 +127,8 @@ docker compose --profile tools run --rm seed
 ```
 
 Seeding is idempotent. These records demonstrate storage and tenant scoping;
-they are not an ingestion or retrieval feature.
+they are not assigned to newly registered users and do not demonstrate ingestion
+or retrieval.
 
 ```sh
 docker compose down
@@ -163,10 +169,12 @@ its process environment and does not automatically load `.env` files. Compose
 provides its service configuration and secret-file paths directly.
 
 - `APP_ENV` selects `development`, `test` or `production`.
-- `CORS_ORIGINS` is a comma-separated list of exact browser origins; it does not
-  authenticate a client.
-- `NEXT_PUBLIC_API_URL` is reserved public browser configuration. The web shell
-  does not call the API yet. Never put a provider key in a `NEXT_PUBLIC_*` value.
+- `CORS_ORIGINS` lists exact browser origins. Session and team mutations also
+  require a matching Origin and JSON, independently of the session check.
+- `API_INTERNAL_URL` is the server-only FastAPI origin used by Next.js. Compose
+  sets it to `http://api:8000`. The browser uses same-origin application routes.
+- `NEXT_PUBLIC_API_URL` is reserved public browser configuration. Never put a
+  session or provider secret in a `NEXT_PUBLIC_*` value.
 - `DATABASE_*` and `REDIS_*` configure internal connections. Password settings
   point to mounted files; API and worker receive only application credentials.
 - `WEB_PORT` and `API_PORT` can override the default loopback ports `3000` and
@@ -185,8 +193,9 @@ pnpm test
 ```
 
 `pnpm test:api` runs unit tests without service connections; integration cases
-skip unless explicitly enabled. `pnpm test:browser` covers the web and widget
-shells. Use `pnpm format` to apply the configured formatters. Repository-local
+skip unless explicitly enabled. `pnpm test:browser` covers signed-out navigation
+and the widget; CI also runs the account and team flow against its disposable
+Compose stack. Use `pnpm format` to apply the configured formatters. Repository-local
 pre-commit scans staged content for secrets and checks formatting/lint; pre-push runs
 [gitleaks](https://github.com/gitleaks/gitleaks#installing) with redacted output.
 

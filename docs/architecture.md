@@ -1,16 +1,17 @@
 # Architecture
 
-KnowledgeDesk is a portfolio project by Hamza Zahid Khokhar. The setup code
-establishes local infrastructure and an internal tenant boundary; the product
-workflows remain on the roadmap.
+KnowledgeDesk is a portfolio project by Hamza Zahid Khokhar. It implements local
+infrastructure, accounts and team authorization. Knowledge and AI workflows
+remain on the roadmap.
 
-## Implemented setup
+## Implemented architecture
 
 ```mermaid
 flowchart LR
-    Browser[Browser] --> Web[Next.js project shell]
+    Browser[Browser] --> Web[Next.js site and protected dashboard]
     HostPage[Independent host test page] --> Widget[Disconnected Web Component]
     Client[Developer or HTTP client] --> API[FastAPI]
+    Web --> API
     API --> Liveness[GET /health]
     API --> Readiness[GET /ready]
     Readiness --> DB[(PostgreSQL 18 and pgvector)]
@@ -25,7 +26,8 @@ flowchart LR
 
 ### Web and API
 
-`apps/web` renders a responsive marketing page and public project overview. Its
+`apps/web` renders a responsive marketing page, public project overview, and
+protected team dashboard. Its
 sample answer is illustrative. The standalone widget supports one-script mounting,
 Shadow DOM, configured text/color, keyboard closing and focus restoration. Both
 remain disconnected from a working conversation service.
@@ -54,9 +56,19 @@ role with unsafe flags, memberships or ownership rather than broadening it.
 
 `tenant_connection` opens a transaction and uses transaction-local
 `set_config('app.team_id', ..., true)`. Tenant context ends with commit or
-rollback before a connection returns to the pool. The supplied UUID must come
-from trusted internal code. This is a database isolation foundation, not user
-identity, team membership or authorization for a client-supplied tenant ID.
+rollback before a connection returns to the pool. Protected HTTP handlers
+resolve the actor's current membership before accessing a team's resources;
+only trusted server code chooses the database context. Internal seeds and
+probes are separate from user authorization.
+
+### Identity and teams
+
+The web server checks an opaque session through FastAPI before displaying the
+dashboard. FastAPI checks live membership and role on each protected request.
+Account registration, team creation, invite redemption and membership changes
+have explicit server-side checks. PostgreSQL stores identity and session state
+and isolates tenant resources through transaction-local scope. See
+[accounts and teams](authentication.md) for roles, revocation and CSRF rules.
 
 The optional seed command inserts two fictional teams and one example source per
 team through the application role. Repeated seeding preserves existing records.
@@ -141,12 +153,9 @@ flowchart LR
 
 ### Identity and tenancy
 
-Server-side identity determines the team and role. Clients, widgets and jobs
-cannot grant themselves a tenant by submitting its ID. Database policies and
-application checks will isolate documents, chunks, citations, actions, usage and
-analytics. Tenant context must be set within each database transaction, using an
-application role that cannot bypass row-level security. File keys, caches and
-background jobs need the same isolation rules.
+Extend the existing membership checks and database scope to documents, chunks,
+citations, actions, usage and analytics as those features are built. File keys,
+caches and background jobs need the same isolation rules.
 
 A widget identifier is public configuration. Allowed-domain checks and CORS are
 abuse/browser-origin controls, not authentication. Widget sessions will be

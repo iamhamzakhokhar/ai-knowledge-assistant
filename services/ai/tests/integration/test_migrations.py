@@ -87,7 +87,16 @@ def test_migrations_roundtrip_and_seed_remains_idempotent(
     engine = create_engine_from_settings(settings)
     try:
         with engine.connect() as connection:
-            for table in ("teams", "knowledge_sources", "job_runs"):
+            for table in (
+                "teams",
+                "knowledge_sources",
+                "job_runs",
+                "auth_users",
+                "auth_credentials",
+                "auth_sessions",
+                "team_memberships",
+                "team_invites",
+            ):
                 assert (
                     connection.scalar(text("SELECT to_regclass(:table)"), {"table": table}) is None
                 )

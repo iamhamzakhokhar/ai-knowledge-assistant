@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const runningStack = process.env.BROWSER_BASE_URL;
+
 export default defineConfig({
   testDir: "./tests/browser",
   fullyParallel: true,
@@ -7,15 +9,19 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: "http://127.0.0.1:41953", trace: "retain-on-failure" },
+  use: { baseURL: runningStack ?? "http://127.0.0.1:41953", trace: "retain-on-failure" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
-  webServer: {
-    command: "pnpm --filter @aka/web start --hostname 127.0.0.1 --port 41953",
-    url: "http://127.0.0.1:41953",
-    reuseExistingServer: false,
-    timeout: 60_000,
-  },
+  ...(runningStack
+    ? {}
+    : {
+        webServer: {
+          command: "pnpm --filter @aka/web start --hostname 127.0.0.1 --port 41953",
+          url: "http://127.0.0.1:41953",
+          reuseExistingServer: false,
+          timeout: 60_000,
+        },
+      }),
 });

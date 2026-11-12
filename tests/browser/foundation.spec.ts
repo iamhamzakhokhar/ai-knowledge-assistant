@@ -3,15 +3,12 @@ import { expect, test } from "@playwright/test";
 
 const widgetBundle = path.resolve("packages/widget/dist/widget.js");
 
-test("the public page leads to an honest workspace setup screen", async ({ page }) => {
+test("the dashboard redirects a signed-out visitor to sign in", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.getByRole("link", { name: "Open dashboard", exact: true }).first().click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(
-    page.getByRole("heading", { name: "Workspace overview", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("Setup in progress", { exact: true }).first()).toBeVisible();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

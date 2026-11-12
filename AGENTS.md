@@ -15,14 +15,14 @@
 
 ## Current scope and architecture
 
-- The current setup includes a Next.js marketing/dashboard shell, a FastAPI
+- The current setup includes a Next.js site and protected dashboard, a FastAPI
   liveness/readiness/status service, a disconnected Web Component preview, and
   local Compose infrastructure: PostgreSQL/pgvector, migrations, authenticated
   Redis, fictional seeds and a JSON RQ infrastructure probe.
-- Database RLS and transaction-local tenant context protect the initial tables
-  for trusted internal callers. User authentication, memberships/roles, ingestion,
-  retrieval and AI chat remain planned. Never accept an unverified client tenant
-  ID as authorization or expose the internal probe as a public enqueue endpoint.
+- Server-verified sessions and current memberships authorize team requests.
+  Database RLS and transaction-local tenant context protect the initial resource
+  tables. Ingestion, retrieval and AI chat remain planned. Never accept an
+  unverified tenant ID as authorization or expose the internal probe publicly.
 - Keep implemented behavior distinct from planned behavior. Do not fabricate
   model replies, connected workflows, customers, revenue, traffic, coverage,
   evaluation results or performance scores.

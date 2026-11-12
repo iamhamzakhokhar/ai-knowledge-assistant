@@ -1,256 +1,189 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Brand } from "@/components/brand";
-import { Icon, type IconName } from "@/components/icons";
+import { Icon } from "@/components/icons";
+import { InviteForm, MembershipActions, SignOutButton, TeamForm } from "@/components/team-forms";
+import { parseRoster, parseSession, roleName, type Team, teamUrl } from "@/lib/workspace";
+import { requestInternalApi, sessionCookieHeader } from "@/lib/workspace-server";
 
-export const metadata: Metadata = { title: "Project dashboard" };
+export const metadata: Metadata = { title: "Workspace overview", robots: { index: false } };
+export const dynamic = "force-dynamic";
 
-const repository = "https://github.com/iamhamzakhokhar/ai-knowledge-assistant";
-const roadmap: { phase: string; title: string; description: string; icon: IconName }[] = [
-  {
-    phase: "01",
-    title: "Setup",
-    description:
-      "Establish the monorepo, application shells, local services, and continuous integration.",
-    icon: "grid",
-  },
-  {
-    phase: "02",
-    title: "Core features",
-    description:
-      "Add team isolation, ingestion, retrieval, citations, widget chat, and approved actions.",
-    icon: "layers",
-  },
-  {
-    phase: "03",
-    title: "Quality",
-    description:
-      "Verify guardrails, evaluations, accessibility, performance, and failure recovery.",
-    icon: "shield",
-  },
-  {
-    phase: "04",
-    title: "Release",
-    description: "Publish deployment guides, measured results, a safe live demo, and v1.0.0.",
-    icon: "globe",
-  },
-];
+async function readWorkspace<T>(
+  path: string,
+  cookie: string,
+  parse: (data: unknown) => T | null,
+): Promise<{ status: number; data: T | null }> {
+  try {
+    const response = await requestInternalApi(path, {
+      headers: { Cookie: cookie, Accept: "application/json" },
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return { status: response.status, data: null };
+    }
+    const data = parse(await response.json());
+    return { status: data ? response.status : 503, data };
+  } catch {
+    return { status: 503, data: null };
+  }
+}
 
-export default function DashboardPage() {
+function WorkspaceUnavailable() {
   return (
-    <div className="dashboard-layout">
+    <div className="auth-layout">
+      <header className="auth-header page-width">
+        <Brand />
+      </header>
+      <main className="auth-main page-width" id="main-content">
+        <div className="auth-card">
+          <h1>Workspace unavailable</h1>
+          <p>The workspace service could not be reached. Try again shortly.</p>
+          <div className="workspace-retry">
+            <a href="/dashboard" className="button button-primary">
+              Retry workspace
+            </a>
+            <Link href="/login" className="text-link">
+              Go to sign in
+            </Link>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function TeamNavigation({ teams, selected }: { teams: Team[]; selected?: Team }) {
+  return (
+    <nav aria-label="Your teams" className="dashboard-nav workspace-teams">
+      {teams.map((team) => (
+        <Link
+          key={team.id}
+          href={teamUrl(team.id)}
+          prefetch={false}
+          aria-current={team.id === selected?.id ? "page" : undefined}
+          className={team.id === selected?.id ? "active" : undefined}
+        >
+          <Icon name="layers" />
+          <span>{team.name}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string | string[] }>;
+}) {
+  const cookie = await sessionCookieHeader();
+  if (!cookie) redirect("/login");
+  const session = await readWorkspace("/api/v1/auth/session", cookie, parseSession);
+  if (session.status === 401) redirect("/login");
+  if (!session.data) return <WorkspaceUnavailable />;
+
+  const { user, teams } = session.data;
+  const requestedTeam = (await searchParams).team;
+  const selected =
+    requestedTeam === undefined ? teams[0] : teams.find((team) => team.id === requestedTeam);
+  const roster = selected
+    ? await readWorkspace(`/api/v1/teams/${selected.id}/members`, cookie, parseRoster)
+    : null;
+  if (roster?.status === 401) redirect("/login");
+
+  return (
+    <div className="dashboard-layout workspace-layout">
       <aside className="dashboard-sidebar">
         <Brand />
-        <div className="workspace-label">
-          <span className="workspace-avatar">K</span>
-          <div>
-            <strong>Project workspace</strong>
-            <span>Public portfolio build</span>
-          </div>
-        </div>
-        <span className="sidebar-label">WORKSPACE</span>
-        <nav aria-label="Dashboard navigation" className="dashboard-nav">
-          <Link href="/dashboard" className="active" aria-current="page">
-            <Icon name="grid" />
-            Overview
-          </Link>
-          <a href="#setup">
-            <Icon name="code" />
-            Getting started
-          </a>
-          <a href="#roadmap">
-            <Icon name="layers" />
-            Roadmap
-          </a>
-          <a href={`${repository}#readme`}>
-            <Icon name="book" />
-            Documentation
-            <Icon name="arrowUp" />
-          </a>
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="sidebar-build-note">
-            <span className="status-dot" />
-            <strong>Building the foundation</strong>
-            <p>Follow each milestone as the assistant takes shape.</p>
-            <a href={`${repository}/issues`}>
-              View open issues <Icon name="arrowUp" />
-            </a>
-          </div>
-          <Link href="/" className="back-link">
-            Back to homepage <Icon name="arrow" />
-          </Link>
-        </div>
+        <span className="sidebar-label">YOUR TEAMS</span>
+        <TeamNavigation teams={teams} selected={selected} />
+        {teams.length === 0 && <p className="workspace-no-teams">No teams yet</p>}
+        <Link href="/project" className="workspace-project-link text-link">
+          Project overview <Icon name="arrow" />
+        </Link>
       </aside>
-
       <div className="dashboard-body">
-        <header className="dashboard-topbar">
-          <div className="breadcrumb">
-            Workspace <span>/</span>
-            <strong>Overview</strong>
+        <header className="dashboard-topbar workspace-topbar">
+          <span>KnowledgeDesk workspace</span>
+          <div className="workspace-account">
+            <span>{user.email}</span>
+            <SignOutButton />
           </div>
-          <a href={repository} className="source-link">
-            <Icon name="code" /> View source <Icon name="arrowUp" />
-          </a>
         </header>
-        <main className="dashboard-main" id="main-content">
-          <div className="dashboard-page-heading">
-            <div>
-              <span className="eyebrow">YOUR KNOWLEDGE, TAKING SHAPE</span>
-              <h1>Workspace overview</h1>
-              <p>A look inside KnowledgeDesk, from its first commit onward.</p>
-            </div>
-            <span className="setup-status">
-              <span className="status-dot" />
-              Setup in progress
-            </span>
+        <main className="dashboard-main workspace-main" id="main-content">
+          <h1>Workspace overview</h1>
+          <div className="workspace-team-forms">
+            <TeamForm mode="create" />
+            <TeamForm mode="join" />
           </div>
-
-          <section className="dashboard-welcome" aria-labelledby="welcome-title">
-            <div className="welcome-art" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <Icon name="book" />
-            </div>
-            <div className="welcome-copy">
-              <span className="eyebrow">THE FOUNDATION COMES FIRST</span>
-              <h2 id="welcome-title">A workspace for a better answer.</h2>
+          {!selected && (
+            <section className="dashboard-panel workspace-panel" aria-labelledby="no-team-heading">
+              <h2 id="no-team-heading">{requestedTeam ? "Team unavailable" : "Your teams"}</h2>
               <p>
-                The web shell is the first step. The roadmap adds connected knowledge, cited
-                answers, and human-approved actions, one feature at a time.
+                {requestedTeam
+                  ? "Choose one of your teams from the sidebar."
+                  : "Create a team or join one using an invite token."}
               </p>
-              <a href={`${repository}/issues`} className="button button-primary button-small">
-                Follow the build <Icon name="arrowUp" />
-              </a>
-            </div>
-          </section>
-
-          <div className="dashboard-detail-grid">
-            <section className="dashboard-panel" id="setup" aria-labelledby="setup-title">
-              <div className="panel-heading">
-                <h2 id="setup-title">Start with the project</h2>
-                <span className="subtle-label">DEVELOPER GUIDE</span>
-              </div>
-              <p className="panel-intro">
-                These links point to the source and its documented setup. No account or API key is
-                required to browse.
-              </p>
-              <ol className="setup-list">
-                <li>
-                  <span className="step-number">1</span>
-                  <div>
-                    <h3>Read the overview</h3>
-                    <p>Understand the architecture, scope, and current project status.</p>
-                    <a href={`${repository}#readme`}>
-                      Open the README <Icon name="arrowUp" />
-                    </a>
-                  </div>
-                </li>
-                <li>
-                  <span className="step-number">2</span>
-                  <div>
-                    <h3>Run the local environment</h3>
-                    <p>
-                      Follow the repository’s getting-started instructions and environment examples.
-                    </p>
-                    <a href={`${repository}#getting-started`}>
-                      View setup instructions <Icon name="arrowUp" />
-                    </a>
-                  </div>
-                </li>
-                <li>
-                  <span className="step-number">3</span>
-                  <div>
-                    <h3>Pick up the next feature</h3>
-                    <p>Review the milestones and acceptance criteria on GitHub.</p>
-                    <a href={`${repository}/milestones`}>
-                      Explore milestones <Icon name="arrowUp" />
-                    </a>
-                  </div>
-                </li>
-              </ol>
             </section>
-
-            <section className="dashboard-panel current-scope" aria-labelledby="scope-title">
-              <div className="panel-heading">
-                <h2 id="scope-title">What’s available here</h2>
-                <Icon name="sparkle" />
-              </div>
-              <div className="scope-item">
-                <span className="scope-check">
-                  <Icon name="check" />
-                </span>
-                <div>
-                  <h3>Marketing page</h3>
-                  <p>A responsive introduction to the project and its intended features.</p>
-                </div>
-              </div>
-              <div className="scope-item">
-                <span className="scope-check">
-                  <Icon name="check" />
-                </span>
-                <div>
-                  <h3>Project dashboard</h3>
-                  <p>This setup overview, useful project links, and the milestone roadmap.</p>
-                </div>
-              </div>
-              <div className="scope-notice">
-                <Icon name="message" />
-                <div>
-                  <strong>The assistant is still being built.</strong>
-                  <p>
-                    Sign-up, uploads, live chat, billing, and analytics are not available in this
-                    milestone.
-                  </p>
-                </div>
-              </div>
-              <a href={`${repository}/issues`} className="text-link">
-                See what’s coming next <Icon name="arrow" />
+          )}
+          {selected && !roster?.data && (
+            <section
+              className="dashboard-panel workspace-panel"
+              aria-labelledby="team-error-heading"
+            >
+              <h2 id="team-error-heading">Team details unavailable</h2>
+              <p>Refresh the workspace to check whether you can access this team.</p>
+              <a className="text-link" href={teamUrl(selected.id)}>
+                Retry team
               </a>
             </section>
-          </div>
-
-          <section className="roadmap-section" id="roadmap" aria-labelledby="roadmap-title">
-            <div className="panel-heading">
-              <div>
-                <span className="eyebrow">ONE MILESTONE AT A TIME</span>
-                <h2 id="roadmap-title">The road to v1.0</h2>
+          )}
+          {selected && roster?.data && (
+            <section
+              className="workspace-team"
+              aria-labelledby="selected-team-heading"
+              key={selected.id}
+            >
+              <div className="workspace-team-heading">
+                <h2 id="selected-team-heading">{selected.name}</h2>
+                <span className="workspace-role">{roleName[selected.role]}</span>
               </div>
-              <a href={`${repository}/milestones`} className="text-link">
-                GitHub milestones <Icon name="arrowUp" />
-              </a>
-            </div>
-            <div className="roadmap-grid">
-              {roadmap.map((item, index) => (
-                <article
-                  className={`roadmap-card ${index === 0 ? "current" : ""}`}
-                  key={item.phase}
-                >
-                  <div className="roadmap-card-top">
-                    <span className="roadmap-icon">
-                      <Icon name={item.icon} />
-                    </span>
-                    <span>{item.phase}</span>
-                  </div>
-                  <h3>{item.title}</h3>
-                  <p>{item.description}</p>
-                  <span className={index === 0 ? "roadmap-status active" : "roadmap-status"}>
-                    {index === 0 ? "Current milestone" : "Planned"}
-                  </span>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <footer className="dashboard-footer">
-            <p>
-              Built by Hamza Zahid Khokhar <span>·</span> Open source under MIT
-            </p>
-            <a href={repository}>
-              iamhamzakhokhar/ai-knowledge-assistant <Icon name="arrowUp" />
-            </a>
-          </footer>
+              {selected.role !== "member" && (
+                <InviteForm teamId={selected.id} canInviteAdmins={selected.role === "owner"} />
+              )}
+              <section
+                className="dashboard-panel workspace-panel"
+                aria-labelledby="members-heading"
+              >
+                <h3 id="members-heading">Team members</h3>
+                <ul className="workspace-roster">
+                  {roster.data.members.map((member) => {
+                    const manageable =
+                      member.role !== "owner" &&
+                      (selected.role === "owner" ||
+                        (selected.role === "admin" && member.role === "member"));
+                    return (
+                      <li key={member.id} className="workspace-member">
+                        <div>
+                          <strong>{member.email}</strong>
+                          <span className="workspace-role">{roleName[member.role]}</span>
+                        </div>
+                        {manageable && (
+                          <MembershipActions
+                            teamId={selected.id}
+                            member={member}
+                            canChangeRole={selected.role === "owner"}
+                          />
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            </section>
+          )}
         </main>
       </div>
     </div>
