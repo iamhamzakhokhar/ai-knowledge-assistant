@@ -1,4 +1,4 @@
-FROM python:3.15.2-slim AS base
+FROM python:3.16.0a2-slim AS base
 COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /usr/local/bin/uv
 ENV PYTHONUNBUFFERED=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
