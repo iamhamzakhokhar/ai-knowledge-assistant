@@ -15,6 +15,7 @@ from sqlalchemy import Connection, Engine, RowMapping, func, select, update
 
 from knowledge_assistant.config import Settings
 from knowledge_assistant.database import create_engine_from_settings, tenant_connection
+from knowledge_assistant.indexing_jobs import IndexAttempt, dispatch_index, stage_index
 from knowledge_assistant.models import websites
 from knowledge_assistant.queueing import create_redis
 from knowledge_assistant.website_crawler import (
@@ -197,14 +198,15 @@ def _record_progress(engine: Engine, work: WebsiteAttempt, page: WebsitePage) ->
 
 def _finish(
     engine: Engine, work: WebsiteAttempt, pages: list[WebsitePage], error: str | None
-) -> None:
+) -> IndexAttempt | None:
     with tenant_connection(engine, work.team_id) as connection:
-        if _lock_attempt(connection, work, "processing") is None:
-            return
+        current = _lock_attempt(connection, work, "processing")
+        if current is None:
+            return None
         if error is not None:
             _fail(connection, work, "processing", error)
-            return
-        connection.execute(
+            return None
+        published = connection.execute(
             update(websites)
             .where(*work.active("processing"))
             .values(
@@ -216,6 +218,16 @@ def _finish(
                 updated_at=func.clock_timestamp(),
             )
         )
+        if published.rowcount == 1:
+            return stage_index(
+                connection,
+                work.team_id,
+                "website",
+                work.website_id,
+                current["requested_by"],
+                work.number,
+            )
+    return None
 
 
 def _page_result(page: CrawlPage) -> WebsitePage:
@@ -286,7 +298,8 @@ def process_website(
             return
         except Exception:
             error = "processing_failed"
-        _finish(engine, work, pages, error)
+        indexing = _finish(engine, work, pages, error)
+        dispatch_index(engine, config, indexing)
     except Exception:
         raise WebsiteWorkError("Website crawl could not complete") from None
     finally:

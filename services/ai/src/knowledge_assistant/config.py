@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost", min_length=1, validation_alias="REDIS_HOST")
     redis_port: int = Field(default=6379, ge=1, le=65535, validation_alias="REDIS_PORT")
     redis_password_file: Path | None = Field(default=None, validation_alias="REDIS_PASSWORD_FILE")
+    embedding_provider: Literal["local", "openai"] = Field(
+        default="local", validation_alias="EMBEDDING_PROVIDER"
+    )
+    embedding_model: str | None = Field(default=None, validation_alias="EMBEDDING_MODEL")
+    embedding_dimension: int | None = Field(
+        default=None, ge=1, le=1536, validation_alias="EMBEDDING_DIMENSION"
+    )
+    openai_api_key_file: Path | None = Field(default=None, validation_alias="OPENAI_API_KEY_FILE")
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

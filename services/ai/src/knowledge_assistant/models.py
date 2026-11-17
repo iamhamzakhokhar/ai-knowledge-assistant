@@ -1,4 +1,6 @@
-"""The initial infrastructure schema; Alembic alone creates or changes tables."""
+"""Database table mappings. Alembic alone creates or changes tables."""
+
+import json
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -124,6 +126,7 @@ documents = sa.Table(
     sa.Column("name", sa.Text(), nullable=False),
     sa.Column("format", sa.Text(), nullable=False),
     sa.Column("sha256", sa.LargeBinary(), nullable=False),
+    sa.Column("revision", sa.BigInteger(), nullable=False, server_default="1"),
     sa.Column("requested_by", UUID(as_uuid=True), sa.ForeignKey("auth_users.id"), nullable=False),
     sa.Column("status", sa.Text(), nullable=False),
     sa.Column("attempt", sa.Integer(), nullable=False),
@@ -142,6 +145,7 @@ documents = sa.Table(
         "status IN ('queued', 'processing', 'completed', 'failed')", name="ck_documents_status"
     ),
     sa.CheckConstraint("attempt BETWEEN 1 AND 3", name="ck_documents_attempt"),
+    sa.CheckConstraint("revision >= 1", name="ck_documents_revision"),
     sa.CheckConstraint("octet_length(sha256) = 32", name="ck_documents_sha256"),
     sa.CheckConstraint(
         "(status IN ('queued', 'processing')) = (lease_until IS NOT NULL)",
@@ -204,4 +208,198 @@ websites = sa.Table(
     ),
     sa.CheckConstraint("jsonb_array_length(pages) BETWEEN 1 AND 24", name="ck_websites_pages"),
     sa.CheckConstraint("jsonb_array_length(working_pages) <= 24", name="ck_websites_working_pages"),
+)
+
+
+class Vector(sa.types.UserDefinedType):
+    """An untyped pgvector column, with dimensions enforced by the index schema."""
+
+    cache_ok = True
+
+    def get_col_spec(self, **kwargs) -> str:
+        return "vector"
+
+    def bind_expression(self, bindvalue):
+        return sa.cast(bindvalue, self)
+
+    def bind_processor(self, dialect):
+        def process(value):
+            return json.dumps(value, allow_nan=False, separators=(",", ":"))
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            return json.loads(value) if value is not None else None
+
+        return process
+
+
+_INDEX_SCOPE = ("team_id", "source_kind", "source_id")
+
+
+def _index_scope_columns():
+    return (
+        sa.Column("team_id", UUID(as_uuid=True), primary_key=True),
+        sa.Column("source_kind", sa.Text(), primary_key=True),
+        sa.Column("source_id", UUID(as_uuid=True), primary_key=True),
+    )
+
+
+source_index_states = sa.Table(
+    "source_index_states",
+    metadata,
+    *_index_scope_columns(),
+    sa.Column(
+        "document_id",
+        UUID(as_uuid=True),
+        sa.Computed("CASE WHEN source_kind = 'document' THEN source_id END", persisted=True),
+    ),
+    sa.Column(
+        "website_id",
+        UUID(as_uuid=True),
+        sa.Computed("CASE WHEN source_kind = 'website' THEN source_id END", persisted=True),
+    ),
+    sa.Column("active_version_id", UUID(as_uuid=True)),
+    sa.Column("status", sa.Text(), nullable=False),
+    sa.Column("attempt", sa.Integer(), nullable=False),
+    sa.Column("lease_until", sa.DateTime(timezone=True)),
+    sa.Column("input_revision", sa.BigInteger(), nullable=False, server_default="1"),
+    sa.Column("processed", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("total", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("requested_by", UUID(as_uuid=True), sa.ForeignKey("auth_users.id"), nullable=False),
+    sa.Column("error", sa.Text()),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+    sa.Column(
+        "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+    sa.ForeignKeyConstraint(
+        ("team_id", "document_id"), ("documents.team_id", "documents.id"), ondelete="CASCADE"
+    ),
+    sa.ForeignKeyConstraint(
+        ("team_id", "website_id"), ("websites.team_id", "websites.id"), ondelete="CASCADE"
+    ),
+    sa.ForeignKeyConstraint(
+        (*_INDEX_SCOPE, "active_version_id"),
+        (
+            "source_index_versions.team_id",
+            "source_index_versions.source_kind",
+            "source_index_versions.source_id",
+            "source_index_versions.id",
+        ),
+        name="fk_source_index_active_version",
+        use_alter=True,
+    ),
+    sa.CheckConstraint("source_kind IN ('document', 'website')", name="ck_index_state_kind"),
+    sa.CheckConstraint(
+        "status IN ('queued', 'processing', 'completed', 'failed', 'removed')",
+        name="ck_index_state_status",
+    ),
+    sa.CheckConstraint("attempt >= 1 AND input_revision >= 1", name="ck_index_state_revision"),
+    sa.CheckConstraint(
+        "0 <= processed AND processed <= total AND total <= 2048", name="ck_index_state_progress"
+    ),
+    sa.CheckConstraint(
+        "(status IN ('queued', 'processing')) = (lease_until IS NOT NULL)",
+        name="ck_index_state_lease",
+    ),
+    sa.CheckConstraint("(status = 'failed') = (error IS NOT NULL)", name="ck_index_state_error"),
+    sa.CheckConstraint(
+        "(status <> 'completed' OR active_version_id IS NOT NULL) AND "
+        "(status <> 'removed' OR active_version_id IS NULL)",
+        name="ck_index_state_publication",
+    ),
+)
+
+source_index_versions = sa.Table(
+    "source_index_versions",
+    metadata,
+    *_index_scope_columns(),
+    sa.Column("id", UUID(as_uuid=True), primary_key=True),
+    sa.Column("input_hash", sa.LargeBinary(), nullable=False),
+    sa.Column("provider", sa.Text(), nullable=False),
+    sa.Column("model", sa.Text(), nullable=False),
+    sa.Column("dimension", sa.Integer(), nullable=False),
+    sa.Column("indexing_version", sa.Integer(), nullable=False),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    ),
+    sa.ForeignKeyConstraint(
+        _INDEX_SCOPE,
+        (
+            "source_index_states.team_id",
+            "source_index_states.source_kind",
+            "source_index_states.source_id",
+        ),
+        ondelete="CASCADE",
+    ),
+    sa.UniqueConstraint(*_INDEX_SCOPE, "id", "dimension", name="uq_index_version_dimension"),
+    sa.UniqueConstraint(
+        *_INDEX_SCOPE,
+        "input_hash",
+        "provider",
+        "model",
+        "dimension",
+        "indexing_version",
+        name="uq_index_version_fingerprint",
+    ),
+    sa.CheckConstraint("octet_length(input_hash) = 32", name="ck_index_version_hash"),
+    sa.CheckConstraint("dimension BETWEEN 1 AND 1536", name="ck_index_version_dimension"),
+    sa.CheckConstraint("indexing_version >= 1", name="ck_index_version_algorithm"),
+    sa.CheckConstraint(
+        "octet_length(provider) BETWEEN 1 AND 100 AND octet_length(model) BETWEEN 1 AND 200",
+        name="ck_index_version_model",
+    ),
+)
+
+source_index_chunks = sa.Table(
+    "source_index_chunks",
+    metadata,
+    *_index_scope_columns(),
+    sa.Column("version_id", UUID(as_uuid=True), primary_key=True),
+    sa.Column("ordinal", sa.Integer(), primary_key=True),
+    sa.Column("anchor", sa.Text(), nullable=False),
+    sa.Column("text", sa.Text(), nullable=False),
+    sa.Column("page", sa.Integer()),
+    sa.Column("heading", sa.Text()),
+    sa.Column("url", sa.Text()),
+    sa.Column("title", sa.Text()),
+    sa.Column("dimension", sa.Integer(), nullable=False),
+    sa.Column("embedding", Vector(), nullable=False),
+    sa.ForeignKeyConstraint(
+        (*_INDEX_SCOPE, "version_id", "dimension"),
+        (
+            "source_index_versions.team_id",
+            "source_index_versions.source_kind",
+            "source_index_versions.source_id",
+            "source_index_versions.id",
+            "source_index_versions.dimension",
+        ),
+        ondelete="CASCADE",
+    ),
+    sa.UniqueConstraint(*_INDEX_SCOPE, "version_id", "anchor", name="uq_index_chunk_anchor"),
+    sa.CheckConstraint("ordinal BETWEEN 0 AND 2047", name="ck_index_chunk_ordinal"),
+    sa.CheckConstraint(
+        "octet_length(text) BETWEEN 1 AND 8192 AND octet_length(anchor) BETWEEN 1 AND 128",
+        name="ck_index_chunk_text",
+    ),
+    sa.CheckConstraint(
+        "(source_kind = 'document' AND url IS NULL AND title IS NULL) OR "
+        "(source_kind = 'website' AND url IS NOT NULL AND page IS NULL AND heading IS NULL)",
+        name="ck_index_chunk_provenance",
+    ),
+    sa.CheckConstraint("page BETWEEN 1 AND 100", name="ck_index_chunk_page"),
+    sa.CheckConstraint(
+        "octet_length(url) BETWEEN 1 AND 2048 AND url ~ '^https?://'", name="ck_index_chunk_url"
+    ),
+    sa.CheckConstraint(
+        "char_length(heading) BETWEEN 1 AND 200 AND char_length(title) BETWEEN 1 AND 200",
+        name="ck_index_chunk_labels",
+    ),
+    sa.CheckConstraint(
+        "vector_dims(embedding) = dimension AND vector_norm(embedding) > 0",
+        name="ck_index_chunk_embedding",
+    ),
 )
