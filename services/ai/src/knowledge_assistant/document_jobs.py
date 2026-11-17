@@ -14,6 +14,7 @@ from sqlalchemy import Connection, Engine, func, select, update
 from knowledge_assistant.config import Settings
 from knowledge_assistant.database import create_engine_from_settings, tenant_connection
 from knowledge_assistant.document_parser import DocumentParseError, DocumentSection, parse_document
+from knowledge_assistant.indexing_jobs import IndexAttempt, dispatch_index, stage_index
 from knowledge_assistant.models import document_originals, documents
 from knowledge_assistant.queueing import QUEUE_NAME, create_redis
 from knowledge_assistant.workspace_store import lock_scope, member_role
@@ -50,16 +51,20 @@ class DocumentAttempt:
     team_id: UUID
     document_id: UUID
     number: int
+    revision: int = 1
 
     def matches(self):
         return (
             documents.c.team_id == self.team_id,
             documents.c.id == self.document_id,
             documents.c.attempt == self.number,
+            documents.c.revision == self.revision,
         )
 
 
-def enqueue_document(settings: Settings, team_id: UUID, document_id: UUID, attempt: int) -> None:
+def enqueue_document(
+    settings: Settings, team_id: UUID, document_id: UUID, attempt: int, revision: int = 1
+) -> None:
     """Deliver only identifiers to the existing JSON worker after the database commit."""
     try:
         with closing(create_redis(settings)) as client:
@@ -68,7 +73,8 @@ def enqueue_document(settings: Settings, team_id: UUID, document_id: UUID, attem
                 str(team_id),
                 str(document_id),
                 attempt,
-                job_id=f"aka-document-{team_id.hex}-{document_id.hex}-{attempt}",
+                revision,
+                job_id=f"aka-document-{team_id.hex}-{document_id.hex}-{revision}-{attempt}",
                 unique=True,
                 job_timeout=JOB_TIMEOUT_SECONDS,
                 ttl=QUEUE_LEASE_SECONDS,
@@ -96,12 +102,14 @@ def _fail(connection: Connection, attempt: DocumentAttempt, status: str, error: 
     )
 
 
-def mark_dispatch_failed(engine: Engine, team_id: UUID, document_id: UUID, attempt: int) -> None:
+def mark_dispatch_failed(
+    engine: Engine, team_id: UUID, document_id: UUID, attempt: int, revision: int = 1
+) -> None:
     """A broker error can only change the still-queued attempt it was dispatching."""
     with tenant_connection(engine, team_id) as connection:
         _fail(
             connection,
-            DocumentAttempt(team_id, document_id, attempt),
+            DocumentAttempt(team_id, document_id, attempt, revision),
             "queued",
             "queue_unavailable",
         )
@@ -154,7 +162,7 @@ def _publish(
     attempt: DocumentAttempt,
     sections: list[DocumentSection] | None,
     error: str | None,
-) -> None:
+) -> IndexAttempt | None:
     with tenant_connection(engine, attempt.team_id) as connection:
         lock_scope(connection, f"aka:team:{attempt.team_id}")
         active = (
@@ -166,13 +174,13 @@ def _publish(
             select(documents.c.requested_by).where(*active).with_for_update()
         )
         if initiator is None:
-            return
+            return None
         if member_role(connection, attempt.team_id, initiator) not in MANAGER_ROLES:
             _fail(connection, attempt, "processing", "authorization_revoked")
         elif error is not None:
             _fail(connection, attempt, "processing", error)
         else:
-            connection.execute(
+            published = connection.execute(
                 update(documents)
                 .where(*active)
                 .values(
@@ -183,17 +191,37 @@ def _publish(
                     updated_at=func.clock_timestamp(),
                 )
             )
+            if published.rowcount == 1:
+                return stage_index(
+                    connection,
+                    attempt.team_id,
+                    "document",
+                    attempt.document_id,
+                    initiator,
+                    attempt.revision,
+                )
+    return None
 
 
 def process_document(
-    team_id: str, document_id: str, attempt: int, *, settings: Settings | None = None
+    team_id: str,
+    document_id: str,
+    attempt: int,
+    revision: int = 1,
+    *,
+    settings: Settings | None = None,
 ) -> None:
     """Claim a live attempt, extract outside the transaction, and atomically publish it."""
-    if type(attempt) is not int or not 1 <= attempt <= MAX_DOCUMENT_ATTEMPTS:
+    if (
+        type(attempt) is not int
+        or not 1 <= attempt <= MAX_DOCUMENT_ATTEMPTS
+        or type(revision) is not int
+        or revision < 1
+    ):
         raise DocumentWorkError("Invalid document attempt")
     engine = None
     try:
-        work = DocumentAttempt(UUID(team_id), UUID(document_id), attempt)
+        work = DocumentAttempt(UUID(team_id), UUID(document_id), attempt, revision)
         config = settings if settings is not None else Settings()
         if config.database_user != "aka_app":
             raise DocumentWorkError("Document worker requires the runtime role")
@@ -212,7 +240,8 @@ def process_document(
             error = failure.code if failure.code in _PARSER_ERRORS else "invalid_document"
         except Exception:
             error = "processing_failed"
-        _publish(engine, work, sections, error)
+        indexing = _publish(engine, work, sections, error)
+        dispatch_index(engine, config, indexing)
     except Exception:
         raise DocumentWorkError("Document extraction could not complete") from None
     finally:

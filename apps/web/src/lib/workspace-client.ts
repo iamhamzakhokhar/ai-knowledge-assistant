@@ -1,8 +1,23 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { documentUploadLimit } from "@/lib/workspace";
 
 type Method = "POST" | "PATCH" | "DELETE";
+
+export const documentFileAccept = ".pdf,.docx,.md,.markdown";
+export const documentUploadMessages = {
+  413: "Choose a file up to 5 MiB.",
+  415: "Choose a PDF, DOCX, or Markdown file.",
+  422: "Check that the file is readable and matches its filename extension.",
+};
+
+export function validateDocumentFile(file: File | null): string {
+  if (!file || file.size === 0) return "Choose a nonempty document.";
+  if (file.size > documentUploadLimit) return documentUploadMessages[413];
+  if (!/\.(pdf|docx|md|markdown)$/i.test(file.name)) return documentUploadMessages[415];
+  return "";
+}
 
 export function useWorkspaceAction(requiresSession = true) {
   const running = useRef(false);

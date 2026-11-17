@@ -3,8 +3,10 @@
 import os
 import subprocess
 import sys
+from uuid import uuid4
 
 import pytest
+from psycopg.errors import CheckViolation, ForeignKeyViolation
 from sqlalchemy import text
 
 from knowledge_assistant.config import Settings
@@ -99,6 +101,9 @@ def test_migrations_roundtrip_and_seed_remains_idempotent(
                 "documents",
                 "document_originals",
                 "websites",
+                "source_index_states",
+                "source_index_versions",
+                "source_index_chunks",
             ):
                 assert (
                     connection.scalar(text("SELECT to_regclass(:table)"), {"table": table}) is None
@@ -122,3 +127,66 @@ def test_migrations_roundtrip_and_seed_remains_idempotent(
             assert connection.scalar(text("SELECT count(*) FROM teams")) == 0
     finally:
         engine.dispose()
+
+
+def test_index_schema_validates_provenance_and_dimension(admin_connection) -> None:
+    team, user, source, other_source, version = (uuid4() for _ in range(5))
+    with admin_connection.transaction(force_rollback=True):
+        admin_connection.execute("INSERT INTO teams (id, name) VALUES (%s, 'Fixture')", (team,))
+        admin_connection.execute(
+            "INSERT INTO auth_users (id, email) VALUES (%s, %s)",
+            (user, f"schema-{user.hex}@example.invalid"),
+        )
+        for document in (source, other_source):
+            admin_connection.execute(
+                "INSERT INTO documents (team_id, id, name, format, sha256, requested_by, "
+                "status, attempt, sections) VALUES "
+                "(%s, %s, 'guide.md', 'markdown', %s, %s, 'completed', 1, '[]'::jsonb)",
+                (team, document, document.bytes * 2, user),
+            )
+
+        # Use the runtime role after preparing isolated fixture inputs as the owner.
+        admin_connection.execute("SET LOCAL ROLE aka_app")
+        admin_connection.execute("SELECT set_config('app.team_id', %s, true)", (str(team),))
+        create_state = (
+            "INSERT INTO source_index_states (team_id, source_kind, source_id, "
+            "requested_by, status, attempt, lease_until) VALUES "
+            "(%s, %s, %s, %s, 'processing', 1, now() + interval '1 minute')"
+        )
+        for document in (source, other_source):
+            admin_connection.execute(create_state, (team, "document", document, user))
+        with pytest.raises(ForeignKeyViolation), admin_connection.transaction():
+            admin_connection.execute(create_state, (team, "website", source, user))
+
+        admin_connection.execute(
+            "INSERT INTO source_index_versions (team_id, source_kind, source_id, id, "
+            "input_hash, provider, model, dimension, indexing_version) VALUES "
+            "(%s, 'document', %s, %s, %s, 'local', 'test-model', 2, 1)",
+            (team, source, version, version.bytes * 2),
+        )
+        add_chunk = (
+            "INSERT INTO source_index_chunks (team_id, source_kind, source_id, "
+            "version_id, ordinal, anchor, text, dimension, embedding) VALUES "
+            "(%s, 'document', %s, %s, 0, 'section-1-chunk-1', 'Fixture text', %s, %s::vector)"
+        )
+        for bad_vector in ("[1]", "[0,0]"):
+            with pytest.raises(CheckViolation), admin_connection.transaction():
+                admin_connection.execute(add_chunk, (team, source, version, 2, bad_vector))
+        with pytest.raises(ForeignKeyViolation), admin_connection.transaction():
+            admin_connection.execute(add_chunk, (team, source, version, 1, "[1]"))
+        admin_connection.execute(add_chunk, (team, source, version, 2, "[1,0]"))
+
+        publish = (
+            "UPDATE source_index_states SET status = 'completed', lease_until = NULL, "
+            "active_version_id = %s WHERE team_id = %s AND source_id = %s"
+        )
+        with pytest.raises(ForeignKeyViolation), admin_connection.transaction():
+            admin_connection.execute(publish, (version, team, other_source))
+        admin_connection.execute(publish, (version, team, source))
+        assert admin_connection.execute("SELECT count(*) FROM source_index_chunks").fetchone() == (
+            1,
+        )
+        admin_connection.execute("SELECT set_config('app.team_id', '', true)")
+        assert admin_connection.execute("SELECT count(*) FROM source_index_chunks").fetchone() == (
+            0,
+        )

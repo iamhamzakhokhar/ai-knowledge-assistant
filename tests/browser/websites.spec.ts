@@ -27,7 +27,10 @@ test("the crawl worker reports a blocked destination and allows a controlled rec
   const created = await submission;
   expect(created.status()).toBe(201);
   const { id } = await created.json();
-  const website = page.getByRole("listitem").filter({ hasText: url });
+  const website = page
+    .getByRole("list", { name: "Team websites" })
+    .getByRole("listitem")
+    .filter({ hasText: url });
   await expect(website.getByText("Failed", { exact: true })).toBeVisible({ timeout: 25_000 });
   const detail = await page.request.get(`${created.url()}/${id}`);
   expect(detail.ok()).toBe(true);

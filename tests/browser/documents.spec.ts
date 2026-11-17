@@ -25,7 +25,10 @@ test("documents are extracted by the worker and appear in the team dashboard", a
   };
   await input.setInputFiles(fixtureFile);
   await uploadButton.click();
-  const item = page.getByRole("listitem").filter({ hasText: name });
+  const item = page
+    .getByRole("list", { name: "Team documents" })
+    .getByRole("listitem")
+    .filter({ hasText: name });
   await expect(item.getByText("Completed", { exact: true })).toBeVisible({ timeout: 25_000 });
   await item.getByRole("button", { name: `Preview ${name}`, exact: true }).click();
   await expect(page.getByRole("heading", { name: "Extracted text", exact: true })).toBeVisible();
@@ -50,7 +53,10 @@ test("documents are extracted by the worker and appear in the team dashboard", a
     buffer: Buffer.from("%PDF-1.7\n1 0 obj\nendobj\n%%EOF\n"),
   });
   await uploadButton.click();
-  const broken = page.getByRole("listitem").filter({ hasText: brokenName });
+  const broken = page
+    .getByRole("list", { name: "Team documents" })
+    .getByRole("listitem")
+    .filter({ hasText: brokenName });
   await expect(broken.getByText("Failed", { exact: true })).toBeVisible({ timeout: 25_000 });
   const retry = page.waitForResponse(
     (response) => response.url().endsWith("/retry") && response.request().method() === "POST",

@@ -1,0 +1,17 @@
+# Apply explicitly to allow the indexing worker to send chunks to OpenAI.
+services:
+  indexing-worker:
+    environment:
+      EMBEDDING_PROVIDER: openai
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1536}
+      OPENAI_API_KEY_FILE: /run/secrets/openai_embedding_key
+    secrets: [openai_embedding_key]
+    networks: [backend, embedding-egress]
+
+networks:
+  embedding-egress:
+
+secrets:
+  openai_embedding_key:
+    file: ${OPENAI_EMBEDDING_KEY_PATH:?Set the path to a private OpenAI API key file}

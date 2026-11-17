@@ -9,7 +9,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from knowledge_assistant.document_parser import MAX_DOCUMENT_BYTES
 
 _MAX_BODY = 4096
-_DOCUMENT_COLLECTION = re.compile(r"/api/v1/teams/[^/]+/documents")
+_DOCUMENT_UPLOAD = re.compile(r"/api/v1/teams/[^/]+/documents(?:/[^/]+/replace)?")
 
 
 class WorkspaceRequestMiddleware:
@@ -44,7 +44,7 @@ class WorkspaceRequestMiddleware:
                 scope, receive, send_private
             )
             return
-        document_upload = scope["method"] == "POST" and _DOCUMENT_COLLECTION.fullmatch(path)
+        document_upload = scope["method"] == "POST" and _DOCUMENT_UPLOAD.fullmatch(path)
         media_type = "application/octet-stream" if document_upload else "application/json"
         content_types = headers.getlist("content-type")
         if (

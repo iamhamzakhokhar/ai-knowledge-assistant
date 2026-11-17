@@ -299,10 +299,12 @@ export function WebsitesPanel({
   teamId,
   canManage,
   initialWebsites,
+  onChange,
 }: {
   teamId: string;
   canManage: boolean;
   initialWebsites: WebsiteSummary[] | null;
+  onChange: () => void;
 }) {
   const path = `teams/${teamId}/websites`;
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -314,7 +316,7 @@ export function WebsitesPanel({
     refreshing,
     refresh,
     saveItem,
-  } = useWorkspaceCollection(path, "websites", initialWebsites, clearPreview);
+  } = useWorkspaceCollection(path, "websites", initialWebsites, clearPreview, onChange);
   const preview = websites?.find((website) => website.id === previewId);
 
   function closePreview() {

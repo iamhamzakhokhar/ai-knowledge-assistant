@@ -51,6 +51,8 @@ for implementation progress.
   upload and retry.
 - [Website ingestion](docs/website-ingestion.md) with bounded crawls, page
   provenance, failure diagnostics, and recrawls.
+- [Versioned knowledge indexing](docs/knowledge-index.md) for documents and
+  websites, including embeddings, citation anchors and index removal.
 - Compose health checks, persistent volumes, separated local credentials,
   and an opt-in integration/recovery test workflow.
 

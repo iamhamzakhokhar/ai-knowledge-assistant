@@ -37,7 +37,7 @@ function operation(method: string, segments: string[]): ResponseShape | undefine
   if (segments.some((segment) => !/^[a-z0-9-]+$/i.test(segment))) return undefined;
   const fixed = staticRoutes.get(`${method} ${segments.join("/")}`);
   if (fixed) return fixed;
-  const [resource, team, collection, entity, action] = segments;
+  const [resource, team, collection, entity, action, indexAction] = segments;
   if (resource !== "teams" || !isId(team)) return undefined;
   if (segments.length === 3) {
     if (collection === "members" && method === "GET") return "members";
@@ -46,6 +46,7 @@ function operation(method: string, segments: string[]): ResponseShape | undefine
     if (collection === "documents" && method === "POST") return "document";
     if (collection === "websites" && method === "GET") return "websites";
     if (collection === "websites" && method === "POST") return "website";
+    if (collection === "index" && method === "GET") return "indexSources";
   }
   if (segments.length === 4 && isId(entity)) {
     if (collection === "members" && method === "PATCH") return "member";
@@ -55,7 +56,14 @@ function operation(method: string, segments: string[]): ResponseShape | undefine
   }
   if (segments.length === 5 && isId(entity) && method === "POST") {
     if (collection === "documents" && action === "retry") return "document";
+    if (collection === "documents" && action === "replace") return "document";
     if (collection === "websites" && action === "recrawl") return "website";
+  }
+  if (collection === "index" && (entity === "document" || entity === "website") && isId(action)) {
+    if (segments.length === 5 && method === "GET") return "indexSource";
+    if (segments.length === 5 && method === "DELETE") return "empty";
+    if (segments.length === 6 && indexAction === "reindex" && method === "POST")
+      return "indexSource";
   }
   return undefined;
 }
@@ -116,7 +124,9 @@ async function handle(
     if (origin === null) return failure(403);
     const contentType = request.headers.get("content-type") ?? "";
     const uploading =
-      request.method === "POST" && segments.length === 3 && segments[2] === "documents";
+      request.method === "POST" &&
+      segments[2] === "documents" &&
+      (segments.length === 3 || (segments.length === 5 && segments[4] === "replace"));
     const expected = uploading ? "application/octet-stream" : "application/json";
     if (contentType.split(";")[0].trim().toLowerCase() !== expected) return failure(415);
     outgoing.set("Content-Type", contentType);

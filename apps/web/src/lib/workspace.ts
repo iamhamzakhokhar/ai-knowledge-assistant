@@ -39,6 +39,19 @@ export type WebsiteDetail = WebsiteSummary & {
   pages: WebsitePage[];
   last_attempt_pages: WebsitePage[];
 };
+export type IndexStatus = ProcessingStatus | "unindexed" | "removed";
+export type IndexSource = {
+  kind: "document" | "website";
+  id: string;
+  name: string;
+  status: IndexStatus;
+  attempt: number;
+  processed: number;
+  total: number;
+  error: string | null;
+  active_version_id: string | null;
+  updated_at: string;
+};
 export type ResponseShape =
   | "session"
   | "teams"
@@ -52,6 +65,8 @@ export type ResponseShape =
   | "websites"
   | "website"
   | "websiteDetail"
+  | "indexSources"
+  | "indexSource"
   | "empty";
 
 export const roleName: Record<Role, string> = { owner: "Owner", admin: "Admin", member: "Member" };
@@ -201,6 +216,53 @@ export function parseWebsites(value: unknown): { websites: WebsiteSummary[] } | 
   return websites ? { websites } : null;
 }
 
+function parseIndexSource(value: unknown): IndexSource | null {
+  if (!isRecord(value)) return null;
+  const {
+    kind,
+    id,
+    name,
+    status,
+    attempt,
+    processed,
+    total,
+    error,
+    active_version_id,
+    updated_at,
+  } = value;
+  if (
+    (kind !== "document" && kind !== "website") ||
+    !isId(id) ||
+    typeof name !== "string" ||
+    (status !== "unindexed" && status !== "removed" && !isProcessingStatus(status)) ||
+    !isCount(attempt) ||
+    !isCount(processed) ||
+    !isCount(total) ||
+    !isNullableText(error) ||
+    (active_version_id !== null && !isId(active_version_id)) ||
+    typeof updated_at !== "string"
+  )
+    return null;
+  return {
+    kind,
+    id,
+    name,
+    status,
+    attempt,
+    processed,
+    total,
+    error,
+    active_version_id,
+    updated_at,
+  };
+}
+
+export function parseIndexSources(value: unknown): { sources: IndexSource[] } | null {
+  if (!isRecord(value)) return null;
+  const sources = parseList(value.sources, parseIndexSource);
+  return sources ? { sources } : null;
+}
+
 export function parseWorkspaceResponse(shape: Exclude<ResponseShape, "empty">, value: unknown) {
   switch (shape) {
     case "session":
@@ -242,6 +304,10 @@ export function parseWorkspaceResponse(shape: Exclude<ResponseShape, "empty">, v
         ? { ...website, published_attempt, pages, last_attempt_pages }
         : null;
     }
+    case "indexSources":
+      return parseIndexSources(value);
+    case "indexSource":
+      return parseIndexSource(value);
   }
 }
 

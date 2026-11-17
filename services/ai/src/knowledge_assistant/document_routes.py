@@ -25,7 +25,7 @@ from knowledge_assistant.document_jobs import (
 from knowledge_assistant.document_parser import DocumentParseError, validate_signature
 from knowledge_assistant.models import document_originals, documents
 from knowledge_assistant.secret_files import SecretFileError
-from knowledge_assistant.workspace_store import authenticated_transaction, require_team
+from knowledge_assistant.workspace_store import authenticated_transaction, require_team, set_context
 
 router = APIRouter(prefix="/api/v1/teams/{team_id}/documents", tags=["documents"])
 
@@ -44,6 +44,8 @@ _SUMMARY_COLUMNS = (
     documents.c.error,
     documents.c.updated_at,
     documents.c.lease_until,
+    documents.c.revision,
+    documents.c.sha256,
     func.clock_timestamp().label("db_time"),
 )
 
@@ -132,14 +134,20 @@ def _file_type(encoded_name: str, data: bytes) -> tuple[str, DocumentFormat]:
     return name, kind
 
 
-def _dispatch(request: Request, team_id: UUID, document_id: UUID, attempt: int) -> DocumentSummary:
+def _dispatch(
+    request: Request, team_id: UUID, document_id: UUID, attempt: int, revision: int = 1
+) -> DocumentSummary:
     # The upload or retry is committed before Redis can hand work to a worker.
     try:
-        enqueue_document(request.app.state.workspace_settings, team_id, document_id, attempt)
+        settings = request.app.state.workspace_settings
+        if revision == 1:
+            enqueue_document(settings, team_id, document_id, attempt)
+        else:
+            enqueue_document(settings, team_id, document_id, attempt, revision)
     except DocumentQueueError:
         try:
             engine = request.app.state.workspace_store.engine()
-            mark_dispatch_failed(engine, team_id, document_id, attempt)
+            mark_dispatch_failed(engine, team_id, document_id, attempt, revision)
         except SQLAlchemyError, SecretFileError, OSError:
             raise HTTPException(503, "Workspace service is unavailable") from None
     with authenticated_transaction(request) as (connection, actor_id, _):
@@ -221,10 +229,12 @@ def retry_document(
 ) -> DocumentSummary:
     with authenticated_transaction(request) as (connection, actor_id, _):
         _require_manager(connection, team_id, actor_id)
-        current = _summary(_read_document(connection, team_id, document_id, for_retry=True))
+        row = _read_document(connection, team_id, document_id, for_retry=True)
+        current = _summary(row)
         if current.status != "failed" or current.attempt >= MAX_DOCUMENT_ATTEMPTS:
             raise HTTPException(409, "Document cannot be retried")
         attempt = current.attempt + 1
+        revision = row["revision"]
         connection.execute(
             update(documents)
             .where(documents.c.team_id == team_id, documents.c.id == document_id)
@@ -238,4 +248,60 @@ def retry_document(
                 lease_until=func.clock_timestamp() + timedelta(seconds=QUEUE_LEASE_SECONDS),
             )
         )
-    return _dispatch(request, team_id, document_id, attempt)
+    return _dispatch(request, team_id, document_id, attempt, revision)
+
+
+@router.post("/{document_id}/replace")
+def replace_document(
+    team_id: UUID,
+    document_id: UUID,
+    request: Request,
+    data: Annotated[bytes, Body(media_type="application/octet-stream")],
+    encoded_name: Annotated[str, Header(alias="X-Document-Name")],
+) -> DocumentSummary:
+    with authenticated_transaction(request) as (connection, actor_id, _):
+        _require_manager(connection, team_id, actor_id)
+        row = _read_document(connection, team_id, document_id, for_retry=True)
+        current = _summary(row)
+        if current.status in {"queued", "processing"}:
+            raise HTTPException(409, "Document extraction is already in progress")
+        name, kind = _file_type(encoded_name, data)
+        digest = hashlib.sha256(data).digest()
+        if digest == row["sha256"]:
+            return current
+        duplicate = connection.scalar(
+            select(documents.c.id).where(
+                documents.c.team_id == team_id, documents.c.sha256 == digest
+            )
+        )
+        if duplicate is not None:
+            raise HTTPException(409, "This content already belongs to another document")
+        revision = row["revision"] + 1
+        connection.execute(
+            update(documents)
+            .where(documents.c.team_id == team_id, documents.c.id == document_id)
+            .values(
+                name=name,
+                format=kind,
+                sha256=digest,
+                revision=revision,
+                requested_by=actor_id,
+                status="queued",
+                attempt=1,
+                sections=None,
+                error=None,
+                updated_at=func.clock_timestamp(),
+                lease_until=func.clock_timestamp() + timedelta(seconds=QUEUE_LEASE_SECONDS),
+            )
+        )
+        # The original-bytes table exposes rows only to the trusted service context.
+        # This write follows the manager check under the same exclusive team lock.
+        set_context(connection, "app.user_id", "")
+        replaced = connection.execute(
+            update(document_originals)
+            .where(document_originals.c.team_id == team_id, document_originals.c.id == document_id)
+            .values(data=data)
+        )
+        if replaced.rowcount != 1:
+            raise HTTPException(503, "Workspace service is unavailable")
+    return _dispatch(request, team_id, document_id, 1, revision)

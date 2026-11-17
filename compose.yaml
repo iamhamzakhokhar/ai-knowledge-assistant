@@ -160,6 +160,29 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  indexing-worker:
+    <<: *ai-image
+    command: ["python", "-m", "knowledge_assistant.indexing_jobs"]
+    mem_limit: 512m
+    environment:
+      <<: *app-environment
+      EMBEDDING_PROVIDER: local
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - app-secrets:/run/app-secrets:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "python", "-m", "knowledge_assistant.indexing_jobs", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -220,6 +243,8 @@ services:
       worker:
         condition: service_healthy
       website-worker:
+        condition: service_healthy
+      indexing-worker:
         condition: service_healthy
       web:
         condition: service_healthy

@@ -46,7 +46,8 @@ def main() -> None:
 
     check_compose()
     run("config", "--quiet")
-    run("up", "--build", "--wait", "--wait-timeout", "240", "web", "worker", "website-worker")
+    services = ("web", "worker", "website-worker", "indexing-worker")
+    run("up", "--build", "--wait", "--wait-timeout", "240", *services)
     run("run", "--rm", "--no-deps", "seed")
     run("run", "--rm", "--build", "--no-deps", "integration-tests")
 
@@ -66,7 +67,7 @@ def main() -> None:
         marker + "c.set('aka:ci:persistence', 'survives-restart'); c.close()",
     )
     run("restart", "postgres", "redis")
-    run("up", "--wait", "--wait-timeout", "180", "web", "worker", "website-worker")
+    run("up", "--wait", "--wait-timeout", "180", *services)
     if count_sources() != expected:
         raise RuntimeError("PostgreSQL data did not survive restart")
     run(

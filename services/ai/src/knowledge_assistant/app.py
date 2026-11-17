@@ -13,6 +13,7 @@ from knowledge_assistant import __version__
 from knowledge_assistant.auth_routes import router as auth_router
 from knowledge_assistant.config import Settings
 from knowledge_assistant.document_routes import router as documents_router
+from knowledge_assistant.indexing_routes import router as index_router
 from knowledge_assistant.readiness import check_dependencies
 from knowledge_assistant.team_routes import router as team_router
 from knowledge_assistant.website_routes import router as websites_router
@@ -29,6 +30,7 @@ class Capabilities(BaseModel):
     authentication: bool = True
     documents: bool = True
     websites: bool = True
+    indexing: bool = True
     ingestion: bool = False
     retrieval: bool = False
     chat: bool = False
@@ -70,6 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(team_router)
     application.include_router(documents_router)
     application.include_router(websites_router)
+    application.include_router(index_router)
 
     @application.exception_handler(RequestValidationError)
     async def invalid_request(_: Request, __: RequestValidationError) -> JSONResponse:

@@ -1,9 +1,15 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { type DocumentDetail, type DocumentSummary, documentUploadLimit } from "@/lib/workspace";
-import { useWorkspaceAction } from "@/lib/workspace-client";
+import type { DocumentDetail, DocumentSummary } from "@/lib/workspace";
 import {
+  documentFileAccept,
+  documentUploadMessages,
+  useWorkspaceAction,
+  validateDocumentFile,
+} from "@/lib/workspace-client";
+import {
+  isProcessing,
   readWorkspaceData,
   statusName,
   useWorkspaceCollection,
@@ -41,26 +47,13 @@ function DocumentUpload({
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const file = new FormData(form).get("document");
+    const value = new FormData(form).get("document");
+    const file = value instanceof File ? value : null;
+    const message = validateDocumentFile(file);
     setNotice("");
-    if (!(file instanceof File) || file.size === 0) {
-      setValidation("Choose a nonempty document.");
-      return;
-    }
-    if (file.size > documentUploadLimit) {
-      setValidation("Choose a file up to 5 MiB.");
-      return;
-    }
-    if (!/\.(pdf|docx|md|markdown)$/i.test(file.name)) {
-      setValidation("Choose a PDF, DOCX, or Markdown file.");
-      return;
-    }
-    setValidation("");
-    const result = await submit<DocumentSummary>(path, "POST", file, {
-      413: "Choose a file up to 5 MiB.",
-      415: "Choose a PDF, DOCX, or Markdown file.",
-      422: "Check that the file is readable and matches its filename extension.",
-    });
+    setValidation(message);
+    if (message || !file) return;
+    const result = await submit<DocumentSummary>(path, "POST", file, documentUploadMessages);
     if (result) {
       onSave(result.data);
       form.reset();
@@ -83,7 +76,7 @@ function DocumentUpload({
           id="document-file"
           name="document"
           type="file"
-          accept=".pdf,.docx,.md,.markdown"
+          accept={documentFileAccept}
           required
           aria-describedby="document-file-help"
           disabled={pending}
@@ -145,6 +138,105 @@ function DocumentRetry({
         <p className="workspace-error" role="alert">
           {error}
         </p>
+      )}
+    </div>
+  );
+}
+
+function DocumentReplacement({
+  path,
+  document,
+  onSave,
+}: {
+  path: string;
+  document: DocumentSummary;
+  onSave: (document: DocumentSummary) => void;
+}) {
+  const { submit, pending, error } = useWorkspaceAction();
+  const [open, setOpen] = useState(false);
+  const [validation, setValidation] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const formId = `replacement-${document.id}`;
+  const active = isProcessing(document.status);
+
+  useEffect(() => {
+    if (open && !active) input.current?.focus();
+  }, [open, active]);
+
+  function close() {
+    setOpen(false);
+    setValidation("");
+    button.current?.focus();
+  }
+
+  async function replace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const file = input.current?.files?.item(0) ?? null;
+    const message = validateDocumentFile(file);
+    setValidation(message);
+    if (message || !file) return;
+    const result = await submit<DocumentSummary>(`${path}/${document.id}/replace`, "POST", file, {
+      ...documentUploadMessages,
+      409: "This document can’t be replaced right now. Refresh documents and check for duplicates.",
+    });
+    if (result) {
+      close();
+      onSave(result.data);
+    }
+  }
+
+  return (
+    <div
+      className={
+        open && !active ? "document-replacement document-replacement-open" : "document-replacement"
+      }
+    >
+      <button
+        className="button button-outline button-small"
+        type="button"
+        ref={button}
+        aria-label={`Replace ${document.name}`}
+        aria-expanded={open && !active}
+        aria-controls={open && !active ? formId : undefined}
+        onClick={open ? close : () => setOpen(true)}
+        disabled={active || pending}
+      >
+        Replace
+      </button>
+      {open && !active && (
+        <form
+          className="workspace-form document-upload"
+          method="post"
+          id={formId}
+          onSubmit={replace}
+          aria-busy={pending}
+        >
+          <div className="workspace-field">
+            <label htmlFor={`${formId}-file`}>Replacement file</label>
+            <input
+              id={`${formId}-file`}
+              type="file"
+              ref={input}
+              accept={documentFileAccept}
+              aria-describedby={`${formId}-help`}
+              required
+              disabled={pending}
+            />
+            <small id={`${formId}-help`}>PDF, DOCX, or Markdown. Up to 5 MiB.</small>
+          </div>
+          <p className="document-notice">
+            The active index stays available while the replacement is processed.
+          </p>
+          <button className="button button-primary button-small" type="submit" disabled={pending}>
+            {pending ? "Uploading…" : "Upload replacement"}
+          </button>
+          {(validation || error) && (
+            <p className="workspace-error" role="alert">
+              {validation || error}
+            </p>
+          )}
+        </form>
       )}
     </div>
   );
@@ -245,10 +337,12 @@ export function DocumentsPanel({
   teamId,
   canManage,
   initialDocuments,
+  onChange,
 }: {
   teamId: string;
   canManage: boolean;
   initialDocuments: DocumentSummary[] | null;
+  onChange: () => void;
 }) {
   const path = `teams/${teamId}/documents`;
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -260,7 +354,7 @@ export function DocumentsPanel({
     refreshing,
     refresh,
     saveItem: saveDocument,
-  } = useWorkspaceCollection(path, "documents", initialDocuments, clearPreview);
+  } = useWorkspaceCollection(path, "documents", initialDocuments, clearPreview, onChange);
   const preview = documents?.find(
     (document) => document.id === previewId && document.status === "completed",
   );
@@ -333,6 +427,9 @@ export function DocumentsPanel({
                 ) : (
                   <span className="document-notice">Retry limit reached.</span>
                 ))}
+              {canManage && (
+                <DocumentReplacement path={path} document={document} onSave={saveDocument} />
+              )}
             </li>
           ))}
         </ul>
