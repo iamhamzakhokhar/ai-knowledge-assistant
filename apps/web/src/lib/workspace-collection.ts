@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ProcessingStatus } from "@/lib/workspace";
+import type { IndexStatus, ProcessingStatus } from "@/lib/workspace";
 
 export const statusName: Record<ProcessingStatus, string> = {
   queued: "Queued",
@@ -10,7 +10,7 @@ export const statusName: Record<ProcessingStatus, string> = {
   failed: "Failed",
 };
 
-export function isProcessing(status: ProcessingStatus): boolean {
+export function isProcessing(status: IndexStatus): boolean {
   return status === "queued" || status === "processing";
 }
 
@@ -30,13 +30,18 @@ export async function readWorkspaceData<T>(path: string, signal: AbortSignal): P
   return (await response.json()) as T;
 }
 
-export function useWorkspaceCollection<T extends { id: string; status: ProcessingStatus }>(
+export function useWorkspaceCollection<
+  T extends { id: string; status: IndexStatus; kind?: "document" | "website" },
+>(
   path: string,
-  collection: "documents" | "websites",
+  collection: "documents" | "websites" | "sources",
   initialItems: T[] | null,
-  onAccessLost: () => void,
+  onAccessLost?: () => void,
+  onChange?: () => void,
 ) {
-  const label = collection === "documents" ? "Documents" : "Websites";
+  const label = { documents: "Documents", websites: "Websites", sources: "Indexed sources" }[
+    collection
+  ];
   const [items, setItems] = useState(initialItems);
   const [error, setError] = useState(initialItems ? "" : `${label} could not be loaded.`);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,11 +49,12 @@ export function useWorkspaceCollection<T extends { id: string; status: Processin
   const hasActiveItems = items?.some((item) => isProcessing(item.status));
 
   const refresh = useCallback(
-    async (showProgress = false) => {
-      if (activeRefresh.current) return;
+    async (showProgress = false, restart = false) => {
+      if (activeRefresh.current && !restart) return;
+      activeRefresh.current?.abort();
       const controller = new AbortController();
       activeRefresh.current = controller;
-      if (showProgress) setRefreshing(true);
+      setRefreshing(showProgress);
       try {
         const result = await readWorkspaceData<Record<typeof collection, T[]>>(
           path,
@@ -57,6 +63,7 @@ export function useWorkspaceCollection<T extends { id: string; status: Processin
         if (!controller.signal.aborted) {
           setItems(result[collection]);
           setError("");
+          onChange?.();
         }
       } catch (cause) {
         if (controller.signal.aborted) return;
@@ -66,7 +73,7 @@ export function useWorkspaceCollection<T extends { id: string; status: Processin
         }
         if (cause instanceof WorkspaceReadError && (cause.status === 403 || cause.status === 404)) {
           setItems(null);
-          onAccessLost();
+          onAccessLost?.();
           setError(`This team’s ${collection} are unavailable.`);
         } else {
           setError(`${label} could not be refreshed. Try again shortly.`);
@@ -78,7 +85,7 @@ export function useWorkspaceCollection<T extends { id: string; status: Processin
         }
       }
     },
-    [collection, label, onAccessLost, path],
+    [collection, label, onAccessLost, onChange, path],
   );
 
   useEffect(
@@ -107,8 +114,14 @@ export function useWorkspaceCollection<T extends { id: string; status: Processin
     activeRefresh.current?.abort();
     activeRefresh.current = null;
     setRefreshing(false);
-    setItems((current) => [item, ...(current ?? []).filter((existing) => existing.id !== item.id)]);
+    setItems((current) => [
+      item,
+      ...(current ?? []).filter(
+        (existing) => existing.id !== item.id || existing.kind !== item.kind,
+      ),
+    ]);
     setError("");
+    onChange?.();
   }
 
   return { items, error, refreshing, refresh, saveItem };

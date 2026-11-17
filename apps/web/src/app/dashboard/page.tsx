@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Brand } from "@/components/brand";
-import { DocumentsPanel } from "@/components/documents-panel";
 import { Icon } from "@/components/icons";
 import { InviteForm, MembershipActions, SignOutButton, TeamForm } from "@/components/team-forms";
-import { WebsitesPanel } from "@/components/websites-panel";
+import { TeamSources } from "@/components/team-sources";
 import {
   parseDocuments,
+  parseIndexSources,
   parseRoster,
   parseSession,
   parseWebsites,
@@ -98,14 +98,16 @@ export default async function DashboardPage({
   const requestedTeam = (await searchParams).team;
   const selected =
     requestedTeam === undefined ? teams[0] : teams.find((team) => team.id === requestedTeam);
-  const [roster, documents, websites] = selected
+  const [roster, documents, websites, index] = selected
     ? await Promise.all([
         readWorkspace(`/api/v1/teams/${selected.id}/members`, cookie, parseRoster),
         readWorkspace(`/api/v1/teams/${selected.id}/documents`, cookie, parseDocuments),
         readWorkspace(`/api/v1/teams/${selected.id}/websites`, cookie, parseWebsites),
+        readWorkspace(`/api/v1/teams/${selected.id}/index`, cookie, parseIndexSources),
       ])
-    : [null, null, null];
-  if ([roster, documents, websites].some((result) => result?.status === 401)) redirect("/login");
+    : [null, null, null, null];
+  if ([roster, documents, websites, index].some((result) => result?.status === 401))
+    redirect("/login");
 
   return (
     <div className="dashboard-layout workspace-layout">
@@ -164,15 +166,12 @@ export default async function DashboardPage({
                 <h2 id="selected-team-heading">{selected.name}</h2>
                 <span className="workspace-role">{roleName[selected.role]}</span>
               </div>
-              <DocumentsPanel
+              <TeamSources
                 teamId={selected.id}
                 canManage={selected.role !== "member"}
                 initialDocuments={documents?.data?.documents ?? null}
-              />
-              <WebsitesPanel
-                teamId={selected.id}
-                canManage={selected.role !== "member"}
                 initialWebsites={websites?.data?.websites ?? null}
+                initialSources={index?.data?.sources ?? null}
               />
               {selected.role !== "member" && (
                 <InviteForm teamId={selected.id} canInviteAdmins={selected.role === "owner"} />

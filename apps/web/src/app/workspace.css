@@ -284,7 +284,7 @@
   flex-wrap: wrap;
   gap: 10px 16px;
 }
-:is(.documents-panel, .websites-panel) > .workspace-error {
+:is(.documents-panel, .websites-panel, .knowledge-index) > .workspace-error {
   color: #923332;
 }
 .document-upload {
@@ -341,6 +341,29 @@
   display: grid;
   justify-items: start;
   gap: 7px;
+}
+.document-replacement-open {
+  flex-basis: 100%;
+}
+.document-replacement-open .document-upload {
+  margin-bottom: 0;
+}
+.knowledge-index .document-row-description code {
+  overflow-wrap: anywhere;
+}
+.knowledge-index-actions {
+  display: grid;
+  gap: 8px;
+}
+.knowledge-index-confirm {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.knowledge-index-confirm p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
 }
 .document-preview {
   min-width: 0;
