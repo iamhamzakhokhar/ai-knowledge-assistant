@@ -33,9 +33,9 @@ test("a team can replace and remove an automatically indexed document", async ({
   expect(original).toMatch(/^[\da-f-]{36}$/);
 
   await page.getByRole("button", { name: `Replace ${name}`, exact: true }).click();
-  await page
-    .getByLabel("Replacement file", { exact: true })
-    .setInputFiles(document("# Schedule\n\nOpen at ten."));
+  const replacementInput = page.getByLabel("Replacement file", { exact: true });
+  await expect(replacementInput).toBeVisible();
+  await replacementInput.setInputFiles(document("# Schedule\n\nOpen at ten."));
   await page.getByRole("button", { name: "Upload replacement", exact: true }).click();
   await expect(version).not.toHaveText(original, { timeout: 25_000 });
   await expect(version).toHaveText(/^[\da-f-]{36}$/);

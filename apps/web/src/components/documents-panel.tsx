@@ -212,17 +212,19 @@ function DocumentReplacement({
           onSubmit={replace}
           aria-busy={pending}
         >
-          <label className="workspace-field">
-            <span>Replacement file</span>
+          <div className="workspace-field">
+            <label htmlFor={`${formId}-file`}>Replacement file</label>
             <input
+              id={`${formId}-file`}
               type="file"
               ref={input}
               accept={documentFileAccept}
+              aria-describedby={`${formId}-help`}
               required
               disabled={pending}
             />
-            <small>PDF, DOCX, or Markdown. Up to 5 MiB.</small>
-          </label>
+            <small id={`${formId}-help`}>PDF, DOCX, or Markdown. Up to 5 MiB.</small>
+          </div>
           <p className="document-notice">
             The active index stays available while the replacement is processed.
           </p>
