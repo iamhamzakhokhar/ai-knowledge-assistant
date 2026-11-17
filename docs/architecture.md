@@ -45,8 +45,8 @@ Alembic revision `0001` creates `teams`, `knowledge_sources` and `job_runs` and
 enables the vector extension. All three tables enable and force row-level
 security. Policies match the transaction's tenant UUID against the team's own
 `id` or a row's `team_id`. Without tenant context, the application role sees no
-rows. pgvector is available, but document chunks, embeddings and retrieval
-indexes have not been implemented.
+rows. The [knowledge index](knowledge-index.md) stores versioned chunks and
+embeddings in pgvector, ready for the retrieval pipeline.
 
 `aka_owner` applies migrations. Runtime `aka_app` is a non-owner login with
 `NOSUPERUSER`, `NOINHERIT` and `NOBYPASSRLS`, table DML and schema usage. It cannot
@@ -183,7 +183,7 @@ reuse the application's role checks and approval path.
 Document uploads and bounded website crawls produce durable jobs. Future
 indexing must preserve their access controls, provenance and recovery behavior.
 
-Each active document version will own its chunks, embedding-model metadata and
+Each active document version owns its chunks, embedding-model metadata and
 stable citation anchors. Keyword/vector queries and reranking must all filter
 authorized active sources. Updates and deletions must change search visibility
 and invalidate relevant caches. Changing an embedding model requires a compatible
