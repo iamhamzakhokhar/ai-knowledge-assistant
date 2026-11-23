@@ -24,8 +24,8 @@
     "infra:test": "docker compose --profile test run --rm --build integration-tests"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.6",
-    "@playwright/test": "1.65.0",
+    "@biomejs/biome": "2.6.8",
+    "@playwright/test": "1.65.1",
     "@types/node": "26.6.6",
     "typescript": "7.0.2"
   }
